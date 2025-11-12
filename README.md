@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Face Enhancer 🎨
 
-## Getting Started
+A beautiful web app for restoring and enhancing faces in photos using AI. Built with Next.js 15 and powered by Replicate's GFPGAN model (free to use!).
 
-First, run the development server:
+## Features
+
+- ✨ Restore and enhance faces using AI
+- 🖼️ View all enhanced images in a responsive grid
+- ❤️ Like your favorite results
+- 💾 Download enhanced images as PNG files
+- 🎭 Beautiful loading states and animations
+- 🎯 Hover effects with interactive buttons
+- 🆓 **Completely free** - uses GFPGAN model on Replicate
+
+## Prerequisites
+
+- Node.js 18+
+- No API token required! GFPGAN model is free on Replicate
+
+## Setup
+
+1. **Install dependencies:**
+
+```bash
+npm install
+```
+
+2. **Run the development server:**
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. **Open your browser:**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Navigate to [http://localhost:3000](http://localhost:3000) to start enhancing faces!
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+1. Click the upload area or drag and drop an image containing a face
+2. Preview your selected image
+3. Click "Enhance Face" button
+4. Wait for the AI to restore and enhance the face
+5. Hover over any result to:
+   - Download the enhanced image to your device
+   - Like/unlike it
+6. All enhanced images are displayed in the grid below
 
-To learn more about Next.js, take a look at the following resources:
+## Tech Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Framework:** Next.js 15 (App Router)
+- **Styling:** Tailwind CSS 4
+- **UI Components:** shadcn/ui
+- **Icons:** Lucide React
+- **AI Model:** GFPGAN (Tencent ARC) via Replicate
+- **Language:** TypeScript
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure
+
+```
+face-enhancer/
+├── app/
+│   ├── api/
+│   │   └── generate/
+│   │       └── route.ts       # API route for face enhancement
+│   ├── page.tsx               # Main application page
+│   ├── layout.tsx             # Root layout
+│   └── globals.css            # Global styles
+├── components/
+│   ├── EmojiCard.tsx          # Image card component
+│   ├── LoadingSkeleton.tsx    # Loading skeleton component
+│   └── ui/                    # shadcn/ui components
+└── lib/
+    └── utils.ts               # Utility functions
+```
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+No environment variables needed - the GFPGAN model is free to use!
+
+## License
+
+MIT
