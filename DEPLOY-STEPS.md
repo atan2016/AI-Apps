@@ -49,17 +49,17 @@ cd /var/www
 sudo git clone https://github.com/atan2016/AI-Apps.git
 
 # Navigate to the project
-cd AI-Apps/emoji-generator
+cd AI-Apps
 
 # Verify you're in the right place
-pwd  # Should show: /var/www/AI-Apps/emoji-generator
+pwd  # Should show: /var/www/AI-Apps
 ls   # Should show package.json, app/, etc.
 ```
 
 **If already cloned**, just pull latest changes:
 
 ```bash
-cd /var/www/AI-Apps/emoji-generator
+cd /var/www/AI-Apps
 sudo git pull origin main
 ```
 
@@ -388,7 +388,7 @@ sudo pm2 logs image-enhancer --lines 50
 
 ```bash
 # Make sure .env is in the project root
-cd /var/www/AI-Apps/emoji-generator
+cd /var/www/AI-Apps
 ls -la .env
 
 # Rebuild and restart
