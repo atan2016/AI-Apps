@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { supabaseAdmin } from '@/lib/supabase';
+
+const supabase = supabaseAdmin();
+
+// GET - Fetch user profile
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check if profile exists
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 is "not found" error
+      throw error;
+    }
+
+    // If profile doesn't exist, create it with 1 free credit
+    if (!profile) {
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: userId,
+          tier: 'free',
+          credits: 1,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      return NextResponse.json(newProfile);
+    }
+
+    return NextResponse.json(profile);
+  } catch (error) {
+    console.error('Error fetching/creating profile:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch profile' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Update profile (for admin operations)
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { credits, tier } = body;
+
+    const updateData: any = {};
+    if (credits !== undefined) updateData.credits = credits;
+    if (tier !== undefined) updateData.tier = tier;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
+      { status: 500 }
+    );
+  }
+}
+

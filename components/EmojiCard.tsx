@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Heart, Download } from "lucide-react";
+import { Heart, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface EmojiCardProps {
   id: string;
   imageUrl: string;
+  originalUrl?: string;
   prompt: string;
   likes: number;
   isLiked: boolean;
@@ -17,12 +18,15 @@ interface EmojiCardProps {
 export function EmojiCard({ 
   id, 
   imageUrl, 
+  originalUrl,
   prompt, 
   likes, 
   isLiked, 
   onLike 
 }: EmojiCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleDownload = async () => {
     try {
@@ -49,13 +53,56 @@ export function EmojiCard({
     >
       {/* Image container */}
       <div className="relative aspect-square bg-gradient-to-br from-muted/50 to-muted">
-        <Image
-          src={imageUrl}
-          alt={prompt}
-          fill
-          className="object-cover"
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-        />
+        {showComparison && originalUrl ? (
+          // Comparison view: Original vs Enhanced
+          <div className="flex h-full w-full">
+            <div className="relative w-1/2 border-r-2 border-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={originalUrl}
+                alt="Original"
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                Original
+              </span>
+            </div>
+            <div className="relative w-1/2">
+              <Image
+                src={imageUrl}
+                alt="Enhanced"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 25vw, (max-width: 1024px) 16.5vw, 10vw"
+              />
+              <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                Enhanced
+              </span>
+            </div>
+          </div>
+                ) : (
+                  // Single enhanced view
+                  imageError ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center p-4">
+                        <p className="text-sm text-destructive">Failed to load image</p>
+                        <p className="text-xs text-muted-foreground mt-1">URL: {imageUrl.substring(0, 50)}...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <Image
+                      src={imageUrl}
+                      alt={prompt}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                      onError={() => {
+                        console.error("Failed to load image:", imageUrl);
+                        setImageError(true);
+                      }}
+                    />
+                  )
+                )}
         
         {/* Hover overlay with buttons */}
         <div
@@ -71,6 +118,17 @@ export function EmojiCard({
           >
             <Download className="h-4 w-4" />
           </Button>
+          {originalUrl && (
+            <Button
+              size="icon"
+              variant="secondary"
+              className="bg-white/90 hover:bg-white text-black"
+              onClick={() => setShowComparison(!showComparison)}
+              title={showComparison ? "Show enhanced only" : "Compare original vs enhanced"}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             size="icon"
             variant="secondary"
