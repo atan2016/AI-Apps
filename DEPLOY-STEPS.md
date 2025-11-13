@@ -424,7 +424,7 @@ When you make changes and push to GitHub:
 ssh your-username@creators-lab.org
 
 # Navigate to project
-cd /var/www/AI-Apps/emoji-generator
+cd /var/www/AI-Apps
 
 # Pull latest changes
 sudo git pull origin main
