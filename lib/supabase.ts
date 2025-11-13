@@ -24,12 +24,23 @@ export const supabaseAdmin = () => {
 // Database types
 export interface Profile {
   user_id: string;
-  tier: 'free' | 'weekly' | 'monthly' | 'yearly';
+  tier: 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
   credits: number;
+  ai_credits: number;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Helper function to check if tier is premium
+export function isPremierTier(tier: Profile['tier']): boolean {
+  return tier.startsWith('premier_');
+}
+
+// Helper function to check if tier is paid (basic or premier)
+export function isPaidTier(tier: Profile['tier']): boolean {
+  return tier !== 'free';
 }
 
 export interface ImageRecord {

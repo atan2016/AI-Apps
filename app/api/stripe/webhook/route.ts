@@ -41,18 +41,41 @@ export async function POST(request: NextRequest) {
         const tier = session.metadata?.tier;
 
         if (userId && tier) {
-          // Update user profile with subscription
-          await supabase
-            .from('profiles')
-            .update({
-              tier: tier,
-              credits: 999999, // Unlimited for paid tiers
-              stripe_subscription_id: session.subscription as string,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId);
+          if (tier === 'credit_pack') {
+            // One-time credit purchase - add 100 AI credits
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('ai_credits')
+              .eq('user_id', userId)
+              .single();
 
-          console.log(`Subscription activated for user ${userId} with tier ${tier}`);
+            if (profile) {
+              await supabase
+                .from('profiles')
+                .update({
+                  ai_credits: profile.ai_credits + 100,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', userId);
+
+              console.log(`Added 100 AI credits for user ${userId}`);
+            }
+          } else {
+            // Subscription - update tier and credits
+            const isPremier = tier.startsWith('premier_');
+            await supabase
+              .from('profiles')
+              .update({
+                tier: tier,
+                credits: 999999, // Unlimited for paid tiers
+                ai_credits: isPremier ? 100 : 0, // 100 AI credits for premier, 0 for basic
+                stripe_subscription_id: session.subscription as string,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', userId);
+
+            console.log(`Subscription activated for user ${userId} with tier ${tier}`);
+          }
         }
         break;
       }
@@ -69,10 +92,13 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (profile && subscription.status === 'active') {
+          // Reset AI credits for premier users on renewal
+          const isPremier = profile.tier.startsWith('premier_');
           await supabase
             .from('profiles')
             .update({
               credits: 999999, // Unlimited for active subscriptions
+              ai_credits: isPremier ? 100 : profile.ai_credits, // Reset to 100 for premier on renewal
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', profile.user_id);
@@ -98,6 +124,7 @@ export async function POST(request: NextRequest) {
             .update({
               tier: 'free',
               credits: 0, // No credits when subscription cancelled
+              ai_credits: 0, // Remove AI credits too
               stripe_subscription_id: null,
               updated_at: new Date().toISOString(),
             })

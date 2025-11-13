@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       id: img.id,
       originalUrl: img.original_url,
       enhancedUrl: img.enhanced_url,
+      prompt: img.prompt || 'Enhanced Image',
       likes: img.likes || 0,
       isLiked: false,
     })) || [];

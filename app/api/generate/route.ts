@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from '@clerk/nextjs/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, isPremierTier } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/storage';
+import { enhanceWithGFPGAN } from '@/lib/aiEnhancement';
 
 const supabase = supabaseAdmin();
 
@@ -21,12 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.text();
-    let imageUrl, enhancedUrl;
+    let imageUrl, enhancedUrl, useAI, filterName;
     
     try {
       const parsed = JSON.parse(body);
       imageUrl = parsed.imageUrl;
       enhancedUrl = parsed.enhancedUrl; // Client-side enhanced image
+      useAI = parsed.useAI || false;
+      filterName = parsed.filterName || 'Enhance'; // Whether to use AI enhancement
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
       return NextResponse.json(
@@ -35,9 +38,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!imageUrl || !enhancedUrl) {
+    if (!imageUrl) {
       return NextResponse.json(
-        { error: "Both original and enhanced image URLs are required" },
+        { error: "Image URL is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!useAI && !enhancedUrl) {
+      return NextResponse.json(
+        { error: "Enhanced image URL is required for non-AI enhancement" },
         { status: 400 }
       );
     }
@@ -53,7 +63,7 @@ export async function POST(request: NextRequest) {
       // If profile doesn't exist, create it
       const { data: newProfile, error: createError } = await supabase
         .from('profiles')
-        .insert({ user_id: userId, tier: 'free', credits: 1 })
+        .insert({ user_id: userId, tier: 'free', credits: 1, ai_credits: 0 })
         .select()
         .single();
       
@@ -67,63 +77,112 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Check if user has enough credits (free tier only)
-      if (profile.tier === 'free' && profile.credits < 1) {
-        return NextResponse.json(
-          { error: "Insufficient credits. Please upgrade your plan." },
-          { status: 402 }
-        );
+      // Check if AI enhancement is requested
+      if (useAI) {
+        // AI enhancement requires premier tier
+        if (!isPremierTier(profile.tier)) {
+          return NextResponse.json(
+            { error: "AI enhancement requires a Premier plan. Please upgrade to Premier." },
+            { status: 402 }
+          );
+        }
+        
+        // Check AI credits
+        if (profile.ai_credits < 1) {
+          return NextResponse.json(
+            { error: "Insufficient AI credits. Purchase more credits to continue." },
+            { status: 402 }
+          );
+        }
+      } else {
+        // Basic enhancement - check regular credits for free tier only
+        if (profile.tier === 'free' && profile.credits < 1) {
+          return NextResponse.json(
+            { error: "Insufficient credits. Please upgrade your plan." },
+            { status: 402 }
+          );
+        }
       }
     }
 
-    console.log("Uploading images to Supabase Storage for user:", userId);
+    console.log("Processing image for user:", userId, "useAI:", useAI);
 
-    // Upload images to Supabase Storage
+    // Upload original image to storage first
     let storageOriginalUrl: string;
     let storageEnhancedUrl: string;
     
     try {
-      // Generate unique filenames
       const timestamp = Date.now();
       const originalFilename = `original_${timestamp}.png`;
-      const enhancedFilename = `enhanced_${timestamp}.png`;
       
-      // Upload both images to storage
+      // Upload original image
       storageOriginalUrl = await uploadImageToStorage(imageUrl, userId, originalFilename);
-      storageEnhancedUrl = await uploadImageToStorage(enhancedUrl, userId, enhancedFilename);
+      console.log("Original image uploaded:", storageOriginalUrl);
       
-      console.log("Images uploaded successfully:", { storageOriginalUrl, storageEnhancedUrl });
-    } catch (uploadError) {
-      console.error("Error uploading images to storage:", uploadError);
+      // Handle enhancement based on useAI flag
+      if (useAI) {
+        // AI enhancement with GFPGAN
+        console.log("Starting AI enhancement with GFPGAN...");
+        const aiEnhancedUrl = await enhanceWithGFPGAN(storageOriginalUrl);
+        console.log("AI enhancement completed:", aiEnhancedUrl);
+        
+        // The AI-enhanced image is already stored by Replicate
+        // Use it directly
+        storageEnhancedUrl = aiEnhancedUrl;
+      } else {
+        // Client-side enhanced image - upload to storage
+        const enhancedFilename = `enhanced_${timestamp}.png`;
+        storageEnhancedUrl = await uploadImageToStorage(enhancedUrl, userId, enhancedFilename);
+        console.log("Client-side enhanced image uploaded:", storageEnhancedUrl);
+      }
+    } catch (enhancementError) {
+      console.error("Error processing image:", enhancementError);
       return NextResponse.json(
-        { error: "Failed to upload images. Please try again." },
+        { error: enhancementError instanceof Error ? enhancementError.message : "Failed to process image. Please try again." },
         { status: 500 }
       );
     }
 
-    // Deduct 1 credit if on free tier
-    if (profile && profile.tier === 'free') {
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          credits: profile.credits - 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId);
+    // Deduct credits based on enhancement type
+    if (profile) {
+      if (useAI) {
+        // Deduct AI credit for premier users
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            ai_credits: profile.ai_credits - 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
 
-      if (updateError) {
-        console.error("Error updating credits:", updateError);
+        if (updateError) {
+          console.error("Error updating AI credits:", updateError);
+        }
+      } else if (profile.tier === 'free') {
+        // Deduct regular credit for free tier users
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            credits: profile.credits - 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        if (updateError) {
+          console.error("Error updating credits:", updateError);
+        }
       }
     }
 
     // Save image URLs to database
+    const methodLabel = useAI ? `AI - ${filterName}` : filterName || 'Enhance';
     const { data: imageRecord, error: imageError } = await supabase
       .from('images')
       .insert({
         user_id: userId,
         original_url: storageOriginalUrl,
         enhanced_url: storageEnhancedUrl,
-        prompt: 'enhanced image',
+        prompt: methodLabel,
       })
       .select()
       .single();
@@ -140,7 +199,8 @@ export async function POST(request: NextRequest) {
       success: true, 
       imageUrl: storageEnhancedUrl,
       imageId: imageRecord?.id,
-      creditsRemaining: profile?.tier === 'free' ? profile.credits - 1 : null
+      creditsRemaining: profile?.tier === 'free' ? profile.credits - 1 : null,
+      aiCreditsRemaining: useAI && profile ? profile.ai_credits - 1 : profile?.ai_credits || 0
     });
   } catch (error) {
     console.error("Error enhancing image:", error);

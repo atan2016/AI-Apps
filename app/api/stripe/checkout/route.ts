@@ -60,10 +60,13 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId);
     }
 
+    // Determine mode based on tier (credit_pack is one-time payment, others are subscriptions)
+    const mode = tier === 'credit_pack' ? 'payment' : 'subscription';
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      mode: 'subscription',
+      mode: mode,
       payment_method_types: ['card'],
       line_items: [
         {
@@ -82,8 +85,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
     console.error('Error creating checkout session:', error);
+    // Log the full error for debugging
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { 
+        error: 'Failed to create checkout session',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
