@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "build:production": "next build",
+    "build:server": "USE_SUBDIRECTORY=true next build",
     "start": "next start",
-    "start:production": "next start -p 3000",
+    "start:server": "USE_SUBDIRECTORY=true next start -p 3000",
     "lint": "eslint"
   },
   "dependencies": {
