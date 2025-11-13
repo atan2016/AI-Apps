@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin, isPremierTier } from '@/lib/supabase';
 import { uploadImageToStorage } from '@/lib/storage';
-import { enhanceWithGFPGAN } from '@/lib/aiEnhancement';
+import { enhanceWithAI, type AIModel } from '@/lib/aiEnhancement';
 
 const supabase = supabaseAdmin();
 
@@ -22,14 +22,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.text();
-    let imageUrl, enhancedUrl, useAI, filterName;
+    let imageUrl, enhancedUrl, useAI, aiModel, filterName;
     
     try {
       const parsed = JSON.parse(body);
       imageUrl = parsed.imageUrl;
       enhancedUrl = parsed.enhancedUrl; // Client-side enhanced image
       useAI = parsed.useAI || false;
-      filterName = parsed.filterName || 'Enhance'; // Whether to use AI enhancement
+      aiModel = parsed.aiModel || 'gfpgan'; // AI model to use
+      filterName = parsed.filterName || 'Enhance'; // Enhancement method name
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
       return NextResponse.json(
@@ -121,10 +122,22 @@ export async function POST(request: NextRequest) {
       
       // Handle enhancement based on useAI flag
       if (useAI) {
-        // AI enhancement with GFPGAN
-        console.log("Starting AI enhancement with GFPGAN...");
-        const aiEnhancedUrl = await enhanceWithGFPGAN(storageOriginalUrl);
-        console.log("AI enhancement completed:", aiEnhancedUrl);
+        // AI enhancement with selected model
+        console.log('\n🚀 ═══════════════════════════════════════════════');
+        console.log(`🤖 Starting AI Enhancement: ${aiModel.toUpperCase()}`);
+        console.log(`📸 Input Image: ${storageOriginalUrl}`);
+        console.log('💰 Replicate API Credit will be consumed...');
+        console.log('═══════════════════════════════════════════════\n');
+        
+        const startTime = Date.now();
+        const aiEnhancedUrl = await enhanceWithAI(storageOriginalUrl, aiModel as AIModel);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        console.log('\n✅ ═══════════════════════════════════════════════');
+        console.log(`✨ AI Enhancement Complete! (${duration}s)`);
+        console.log(`📤 Output Image: ${aiEnhancedUrl}`);
+        console.log('💳 1 Replicate API credit used');
+        console.log('═══════════════════════════════════════════════\n');
         
         // The AI-enhanced image is already stored by Replicate
         // Use it directly

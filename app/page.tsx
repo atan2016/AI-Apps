@@ -10,6 +10,8 @@ import { useUser } from "@clerk/nextjs";
 import { applyFilters, FILTER_PRESETS } from "@/lib/imageFilters";
 import type { Profile } from "@/lib/supabase";
 import { isPremierTier } from "@/lib/supabase";
+import type { AIModel } from "@/lib/aiEnhancement";
+import { getAIModelDisplayName } from "@/lib/aiEnhancement";
 
 interface ImageData {
   id: string;
@@ -28,6 +30,7 @@ export default function Home() {
   const [filterPreviewUrl, setFilterPreviewUrl] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<keyof typeof FILTER_PRESETS>('enhance');
   const [useAI, setUseAI] = useState(false);
+  const [selectedAIModel, setSelectedAIModel] = useState<AIModel>('gfpgan');
   const [images, setImages] = useState<ImageData[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
@@ -148,10 +151,11 @@ export default function Home() {
       };
       const filterDisplayName = filterNameMap[selectedFilter] || selectedFilter;
       
-      let requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; filterName: string } = {
+      let requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
         imageUrl: dataUrl,
         useAI: useAI,
-        filterName: useAI ? 'GFPGAN' : filterDisplayName,
+        aiModel: useAI ? selectedAIModel : undefined,
+        filterName: useAI ? getAIModelDisplayName(selectedAIModel) : filterDisplayName,
       };
 
       // If not using AI, apply filters client-side
@@ -181,6 +185,7 @@ export default function Home() {
         id: data.imageId || Date.now().toString(),
         originalUrl: dataUrl,
         enhancedUrl: data.imageUrl,
+        prompt: useAI ? `AI - ${getAIModelDisplayName(selectedAIModel)}` : filterDisplayName,
         likes: 0,
         isLiked: false,
       };
@@ -553,9 +558,37 @@ export default function Home() {
                   </Button>
                 </div>
                 {useAI && (
-                  <p className="text-xs text-center text-purple-600 dark:text-purple-400">
-                    Using GFPGAN AI - {profile?.ai_credits} credits remaining
-                  </p>
+                  <div className="space-y-2 mt-2">
+                    <label className="text-sm font-medium">AI Model:</label>
+                    <select
+                      value={selectedAIModel}
+                      onChange={(e) => setSelectedAIModel(e.target.value as AIModel)}
+                      className="w-full p-2 border rounded-md bg-background"
+                      disabled={isGenerating}
+                    >
+                      <optgroup label="🎨 Face Enhancement">
+                        <option value="gfpgan">GFPGAN - Professional Face Restoration</option>
+                        <option value="codeformer">CodeFormer - Robust Face Enhancement</option>
+                      </optgroup>
+                      <optgroup label="⬆️ Upscaling">
+                        <option value="realesrgan">Real-ESRGAN (2x) - High Quality Standard</option>
+                        <option value="esrgan">Real-ESRGAN (2x) - No Face Enhancement</option>
+                        <option value="swinir">Real-ESRGAN (3x) - Triple Upscale</option>
+                        <option value="bsrgan">Real-ESRGAN (4x) - Maximum Quality</option>
+                      </optgroup>
+                      <optgroup label="🔧 Restoration & Effects">
+                        <option value="photorestorer">Photo Restoration - Fix Old Photos</option>
+                        <option value="deoldify">Image Denoising - Remove Noise</option>
+                        <option value="clarity">Clarity Upscaler - Crystal Clear (2x)</option>
+                      </optgroup>
+                      <optgroup label="✨ Special">
+                        <option value="rembg">Background Removal - Remove Backgrounds</option>
+                      </optgroup>
+                    </select>
+                    <p className="text-xs text-center text-purple-600 dark:text-purple-400">
+                      Using {getAIModelDisplayName(selectedAIModel)} - {profile?.ai_credits} AI credits remaining
+                    </p>
+                  </div>
                 )}
               </div>
             )}
