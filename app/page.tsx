@@ -34,7 +34,6 @@ export default function Home() {
   const [images, setImages] = useState<ImageData[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Check if user has premier tier
@@ -45,8 +44,6 @@ export default function Home() {
     if (isLoaded && user) {
       fetchProfile();
       fetchUserImages();
-    } else if (isLoaded && !user) {
-      setIsLoadingProfile(false);
     }
   }, [isLoaded, user]);
 
@@ -59,8 +56,6 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-    } finally {
-      setIsLoadingProfile(false);
     }
   };
 
@@ -151,19 +146,16 @@ export default function Home() {
       };
       const filterDisplayName = filterNameMap[selectedFilter] || selectedFilter;
       
-      let requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
+      const requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
         imageUrl: dataUrl,
         useAI: useAI,
         aiModel: useAI ? selectedAIModel : undefined,
         filterName: useAI ? getAIModelDisplayName(selectedAIModel) : filterDisplayName,
+        enhancedUrl: !useAI ? await (async () => {
+          const filterOptions = FILTER_PRESETS[selectedFilter];
+          return await applyFilters(dataUrl, filterOptions);
+        })() : undefined,
       };
-
-      // If not using AI, apply filters client-side
-      if (!useAI) {
-        const filterOptions = FILTER_PRESETS[selectedFilter];
-        const enhancedDataUrl = await applyFilters(dataUrl, filterOptions);
-        requestBody.enhancedUrl = enhancedDataUrl;
-      }
 
       // Send to API for saving (and AI enhancement if requested)
       const response = await fetch("/api/generate", {

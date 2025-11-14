@@ -30,7 +30,7 @@ export async function uploadImageToStorage(
   const filePath = `${userId}/${filename}`;
   
   // Upload to Supabase Storage
-  const { data, error } = await supabase.storage
+  const { error } = await supabase.storage
     .from('image')
     .upload(filePath, buffer, {
       contentType: 'image/png',

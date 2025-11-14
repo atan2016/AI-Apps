@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 const supabase = supabaseAdmin();
 
 // GET - Fetch user profile
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { credits, tier } = body;
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (credits !== undefined) updateData.credits = credits;
     if (tier !== undefined) updateData.tier = tier;
     updateData.updated_at = new Date().toISOString();
