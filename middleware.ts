@@ -7,12 +7,23 @@ const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
 // Whitelist IP addresses (your IP for testing in production)
 const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '').split(',').map(ip => ip.trim()).filter(Boolean);
 
+// Get base path from environment (for subdirectory deployment)
+const BASE_PATH = process.env.USE_SUBDIRECTORY === 'true' ? '/imageEnhancer' : '';
+
 // Define public routes (no auth required)
 const isPublicRoute = createRouteMatcher([
   '/',
+  `${BASE_PATH}/`,
+  '/info(.*)',
+  `${BASE_PATH}/info(.*)`,
   '/api/generate(.*)',
+  `${BASE_PATH}/api/generate(.*)`,
+  '/api/stripe/webhook(.*)',
+  `${BASE_PATH}/api/stripe/webhook(.*)`,
   '/sign-in(.*)',
+  `${BASE_PATH}/sign-in(.*)`,
   '/sign-up(.*)',
+  `${BASE_PATH}/sign-up(.*)`,
 ]);
 
 // Helper function to get client IP
@@ -52,8 +63,10 @@ export const config = {
   matcher: [
     // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
+    // Always run for API routes (with or without basePath)
     '/(api|trpc)(.*)',
+    '/imageEnhancer/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/imageEnhancer/(api|trpc)(.*)',
   ],
 };
 

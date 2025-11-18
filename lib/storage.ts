@@ -10,6 +10,30 @@ export function dataURLtoBuffer(dataURL: string): Buffer {
 }
 
 /**
+ * Downloads an image from a URL and converts it to a data URL
+ * @param imageUrl - The URL of the image to download
+ * @returns A data URL string (base64 encoded image)
+ */
+export async function downloadImageAsDataURL(imageUrl: string): Promise<string> {
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
+    return `data:${contentType};base64,${base64}`;
+  } catch (error) {
+    console.error('Error downloading image:', error);
+    throw new Error(`Failed to download image from URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Uploads an image to Supabase Storage
  * @param dataURL - The base64 data URL of the image
  * @param userId - The user ID (for organizing files)
@@ -54,13 +78,20 @@ export async function uploadImageToStorage(
  * Deletes an image from Supabase Storage
  */
 export async function deleteImageFromStorage(fileUrl: string): Promise<void> {
+  // Skip deletion if URL is from Replicate (old expired URLs)
+  if (fileUrl.includes('replicate.delivery')) {
+    console.log('Skipping deletion of Replicate URL (already expired):', fileUrl);
+    return;
+  }
+
   const supabase = supabaseAdmin();
   
   // Extract the file path from the URL
   // URL format: https://[project].supabase.co/storage/v1/object/public/image/[path]
   const urlParts = fileUrl.split('/image/');
   if (urlParts.length < 2) {
-    throw new Error('Invalid storage URL');
+    console.warn('Invalid storage URL format, skipping deletion:', fileUrl);
+    return;
   }
   
   const filePath = urlParts[1];
@@ -70,8 +101,8 @@ export async function deleteImageFromStorage(fileUrl: string): Promise<void> {
     .remove([filePath]);
   
   if (error) {
-    console.error('Error deleting from Supabase Storage:', error);
-    throw new Error(`Failed to delete image: ${error.message}`);
+    // Don't throw - some files might already be deleted
+    console.warn(`Error deleting image from storage (${filePath}):`, error.message);
   }
 }
 

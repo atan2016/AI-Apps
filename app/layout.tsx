@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Link from "next/link";
 import {
   ClerkProvider,
   SignInButton,
@@ -37,8 +38,24 @@ export default function RootLayout({
         >
           <header className="border-b bg-background">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-              <h1 className="text-xl font-semibold">Image Enhancer</h1>
+              <Link href="/" className="text-xl font-semibold hover:text-primary transition-colors">
+                Image Enhancer
+              </Link>
               <div className="flex items-center gap-4">
+                <Link 
+                  href="/info" 
+                  className="text-sm font-medium hover:text-primary transition-colors"
+                >
+                  Info
+                </Link>
+                <SignedIn>
+                  <Link 
+                    href="/subscriptions" 
+                    className="text-sm font-medium hover:text-primary transition-colors"
+                  >
+                    Subscriptions
+                  </Link>
+                </SignedIn>
                 <SignedOut>
                   <SignInButton mode="modal">
                     <button className="text-sm font-medium hover:text-primary transition-colors">

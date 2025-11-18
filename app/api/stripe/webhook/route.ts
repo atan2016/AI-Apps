@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
         if (userId && tier) {
           if (tier === 'credit_pack') {
-            // One-time credit purchase - add 100 AI credits
+            // One-time credit purchase - add 50 AI credits
             const { data: profile } = await supabase
               .from('profiles')
               .select('ai_credits')
@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
               await supabase
                 .from('profiles')
                 .update({
-                  ai_credits: profile.ai_credits + 100,
+                  ai_credits: profile.ai_credits + 50,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('user_id', userId);
 
-              console.log(`Added 100 AI credits for user ${userId}`);
+              console.log(`Added 50 AI credits for user ${userId}`);
             }
           } else {
             // Subscription - update tier and credits

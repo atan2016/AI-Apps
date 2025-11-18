@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin, isPremierTier } from '@/lib/supabase';
-import { uploadImageToStorage } from '@/lib/storage';
+import { uploadImageToStorage, downloadImageAsDataURL } from '@/lib/storage';
 import { enhanceWithAI, type AIModel } from '@/lib/aiEnhancement';
 
 const supabase = supabaseAdmin();
@@ -11,14 +11,24 @@ export const maxDuration = 60; // 60 seconds timeout
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user ID from Clerk
-    const { userId } = await auth();
+    // Skip auth if SKIP_AUTH flag is set
+    const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
+    let userId: string | null = null;
     
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Unauthorized. Please sign in." },
-        { status: 401 }
-      );
+    if (!SKIP_AUTH) {
+      // Get user ID from Clerk
+      const authResult = await auth();
+      userId = authResult.userId;
+      
+      if (!userId) {
+        return NextResponse.json(
+          { error: "Unauthorized. Please sign in or sign up." },
+          { status: 401 }
+        );
+      }
+    } else {
+      // Use a default test user ID when auth is skipped
+      userId = 'test-user-skip-auth';
     }
 
     const body = await request.text();
@@ -139,9 +149,13 @@ export async function POST(request: NextRequest) {
         console.log('💳 1 Replicate API credit used');
         console.log('═══════════════════════════════════════════════\n');
         
-        // The AI-enhanced image is already stored by Replicate
-        // Use it directly
-        storageEnhancedUrl = aiEnhancedUrl;
+        // Download the AI-enhanced image from Replicate and upload to Supabase Storage
+        // This ensures the image persists even after Replicate URLs expire
+        console.log('📥 Downloading AI-enhanced image from Replicate...');
+        const aiEnhancedDataUrl = await downloadImageAsDataURL(aiEnhancedUrl);
+        const enhancedFilename = `enhanced_${timestamp}.png`;
+        storageEnhancedUrl = await uploadImageToStorage(aiEnhancedDataUrl, userId, enhancedFilename);
+        console.log("AI-enhanced image uploaded to Supabase:", storageEnhancedUrl);
       } else {
         // Client-side enhanced image - upload to storage
         const enhancedFilename = `enhanced_${timestamp}.png`;

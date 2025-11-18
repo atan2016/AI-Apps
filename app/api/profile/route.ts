@@ -7,10 +7,17 @@ const supabase = supabaseAdmin();
 // GET - Fetch user profile
 export async function GET() {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
+    let userId: string | null = null;
+    
+    if (!SKIP_AUTH) {
+      const authResult = await auth();
+      userId = authResult.userId;
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized. Please sign in or sign up.' }, { status: 401 });
+      }
+    } else {
+      userId = 'test-user-skip-auth';
     }
 
     // Check if profile exists
@@ -55,10 +62,17 @@ export async function GET() {
 // POST - Update profile (for admin operations)
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
+    let userId: string | null = null;
+    
+    if (!SKIP_AUTH) {
+      const authResult = await auth();
+      userId = authResult.userId;
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized. Please sign in or sign up.' }, { status: 401 });
+      }
+    } else {
+      userId = 'test-user-skip-auth';
     }
 
     const body = await request.json();

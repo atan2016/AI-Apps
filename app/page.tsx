@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmojiCard } from "@/components/EmojiCard";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
-import { Loader2, Upload, X, CreditCard } from "lucide-react";
+import { ImageCropper } from "@/components/ImageCropper";
+import { Loader2, Upload, X, CreditCard, Crop, Undo2 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { applyFilters, FILTER_PRESETS } from "@/lib/imageFilters";
 import type { Profile } from "@/lib/supabase";
@@ -20,6 +21,7 @@ interface ImageData {
   prompt: string;
   likes: number;
   isLiked: boolean;
+  createdAt?: string;
 }
 
 export default function Home() {
@@ -28,13 +30,21 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [filterPreviewUrl, setFilterPreviewUrl] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<keyof typeof FILTER_PRESETS>('enhance');
+  const [selectedFilter, setSelectedFilter] = useState<keyof typeof FILTER_PRESETS | 'original'>('enhance');
   const [useAI, setUseAI] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState<AIModel>('gfpgan');
   const [images, setImages] = useState<ImageData[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Cropping state
+  const [isCropping, setIsCropping] = useState(false);
+  const [originalImageBeforeCrop, setOriginalImageBeforeCrop] = useState<string | null>(null);
+  const [hasUndoneCrop, setHasUndoneCrop] = useState(false);
+  const [croppedImageUrl, setCroppedImageUrl] = useState<string | null>(null);
+  const [rotationAngle, setRotationAngle] = useState(0);
+  const [originalFileBeforeCrop, setOriginalFileBeforeCrop] = useState<File | null>(null);
 
   // Check if user has premier tier
   const isPremierUser = profile && profile.tier.startsWith('premier_');
@@ -81,6 +91,14 @@ export default function Home() {
       setSelectedFile(file);
       setError(null);
       
+      // Reset cropping state when new file is selected
+      setIsCropping(false);
+      setOriginalImageBeforeCrop(null);
+      setHasUndoneCrop(false);
+      setCroppedImageUrl(null);
+      setRotationAngle(0);
+      setOriginalFileBeforeCrop(null);
+      
       // Create preview URL
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -96,13 +114,79 @@ export default function Home() {
     setFilterPreviewUrl(null);
     setSelectedFilter('enhance');
     setError(null);
+    // Reset cropping state
+    setIsCropping(false);
+    setOriginalImageBeforeCrop(null);
+    setHasUndoneCrop(false);
+    setCroppedImageUrl(null);
+    setRotationAngle(0);
+    setOriginalFileBeforeCrop(null);
+  };
+
+  const handleCropClick = () => {
+    if (previewUrl && selectedFile) {
+      // Store original for undo - use the original file's URL, not cropped one
+      const originalUrl = originalImageBeforeCrop || previewUrl;
+      setOriginalImageBeforeCrop(originalUrl);
+      setOriginalFileBeforeCrop(selectedFile);
+      setIsCropping(true);
+    }
+  };
+
+  const handleCropComplete = async (croppedImageUrl: string) => {
+    // Revoke old preview URL if it was cropped (but not the original)
+    if (croppedImageUrl && previewUrl && previewUrl !== originalImageBeforeCrop) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    
+    setCroppedImageUrl(croppedImageUrl);
+    setPreviewUrl(croppedImageUrl);
+    setIsCropping(false);
+    setHasUndoneCrop(false);
+    
+    // Convert cropped image to File for selectedFile
+    // Preserve original filename if available
+    const originalFilename = selectedFile?.name || 'cropped-image.png';
+    const { dataURLtoFile } = await import('@/lib/imageCropper');
+    const croppedFile = dataURLtoFile(croppedImageUrl, originalFilename);
+    setSelectedFile(croppedFile);
+  };
+
+  const handleCropCancel = () => {
+    setIsCropping(false);
+  };
+
+  const handleUndoCrop = () => {
+    if (originalImageBeforeCrop && originalFileBeforeCrop && !hasUndoneCrop) {
+      // Revoke cropped image URL
+      if (croppedImageUrl) {
+        URL.revokeObjectURL(croppedImageUrl);
+      }
+      if (previewUrl && previewUrl !== originalImageBeforeCrop) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      
+      // Restore original
+      const originalUrl = URL.createObjectURL(originalFileBeforeCrop);
+      setPreviewUrl(originalUrl);
+      setCroppedImageUrl(null);
+      setRotationAngle(0);
+      setHasUndoneCrop(true);
+      setSelectedFile(originalFileBeforeCrop);
+    }
   };
 
   // Handle filter selection with live preview
-  const handleFilterSelect = async (filter: keyof typeof FILTER_PRESETS) => {
+  const handleFilterSelect = async (filter: keyof typeof FILTER_PRESETS | 'original') => {
     setSelectedFilter(filter);
     
     if (!previewUrl) return;
+    
+    if (filter === 'original') {
+      // Show original image
+      setFilterPreviewUrl(null);
+      return;
+    }
     
     setIsApplyingFilter(true);
     try {
@@ -144,6 +228,12 @@ export default function Home() {
         warm: 'Warm',
         bw: 'B&W',
       };
+      // Don't allow submission if "Original" is selected (no filter applied)
+      if (!useAI && selectedFilter === 'original') {
+        setError('Please select a filter style before enhancing');
+        return;
+      }
+      
       const filterDisplayName = filterNameMap[selectedFilter] || selectedFilter;
       
       const requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
@@ -152,7 +242,7 @@ export default function Home() {
         aiModel: useAI ? selectedAIModel : undefined,
         filterName: useAI ? getAIModelDisplayName(selectedAIModel) : filterDisplayName,
         enhancedUrl: !useAI ? await (async () => {
-          const filterOptions = FILTER_PRESETS[selectedFilter];
+          const filterOptions = FILTER_PRESETS[selectedFilter as keyof typeof FILTER_PRESETS];
           return await applyFilters(dataUrl, filterOptions);
         })() : undefined,
       };
@@ -180,6 +270,7 @@ export default function Home() {
         prompt: useAI ? `AI - ${getAIModelDisplayName(selectedAIModel)}` : filterDisplayName,
         likes: 0,
         isLiked: false,
+        createdAt: new Date().toISOString(),
       };
 
       setImages((prev) => [newImage, ...prev]);
@@ -222,14 +313,14 @@ export default function Home() {
     try {
       const priceIds = {
         // Test mode - Basic plans (client-side filters only)
-        weekly: 'price_1SSsLiJtYXMzJCdN3oQB39hZ',
-        monthly: 'price_1SSsMCJtYXMzJCdN1xaQfKmu',
-        yearly: 'price_1SSsNbJtYXMzJCdNcdAOA1ZK',
+        weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B', // $2.99/week
+        monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K', // $5.99/month
+        yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ', // $14.99/year
         
         // Test mode - Premier plans (AI enhancement included)
-        premier_weekly: 'price_1ST7PDJtYXMzJCdNjd51XXUb',
-        premier_monthly: 'price_1ST7OPJtYXMzJCdNu32G50TH',
-        premier_yearly: 'price_1ST7NrJtYXMzJCdNB9QpyiY5',
+        premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv', // $6.99/week
+        premier_monthly: 'price_1SUw74JtYXMzJCdNdo7CymJs', // $14.99/month
+        premier_yearly: 'price_1SUwZsJtYXMzJCdNuoGh5VrV', // $79.00/year
       };
 
       const response = await fetch('/api/stripe/checkout', {
@@ -322,7 +413,27 @@ export default function Home() {
                   <CreditCard className="h-4 w-4" />
                   <span className="font-medium">
                     {profile.tier === 'free' 
-                      ? `${profile.credits} credits remaining`
+                      ? (profile.credits === 1 
+                          ? (
+                              <span className="font-bold animate-flash animate-rainbow">
+                                You get 1 credit to try for FREE
+                              </span>
+                            )
+                          : profile.credits === 0
+                            ? (
+                                <button
+                                  onClick={() => {
+                                    const premierPlan = document.getElementById('premier-plan');
+                                    if (premierPlan) {
+                                      premierPlan.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    }
+                                  }}
+                                  className="text-primary hover:underline cursor-pointer"
+                                >
+                                  0 credits remaining - Purchase A Plan
+                                </button>
+                              )
+                            : `${profile.credits} credits remaining`)
                       : isPremierUser
                         ? `${profile.ai_credits} AI credits remaining`
                         : `Unlimited filters`}
@@ -338,7 +449,7 @@ export default function Home() {
                   size="sm"
                   className="text-xs"
                 >
-                  Buy 100 AI Credits - $5
+                  Buy 50 AI Credits - $5
                 </Button>
               )}
             </div>
@@ -386,28 +497,28 @@ export default function Home() {
                     variant="outline"
                     className="w-full"
                   >
-                    Weekly - $4.99
+                    Weekly - $2.99
                   </Button>
                   <Button
                     onClick={() => handleUpgrade('monthly')}
                     variant="outline"
                     className="w-full"
                   >
-                    Monthly - $20.99
+                    Monthly - $5.99
                   </Button>
                   <Button
                     onClick={() => handleUpgrade('yearly')}
                     variant="outline"
                     className="w-full"
                   >
-                    Yearly - $275
+                    Yearly - $14.99
                   </Button>
                 </div>
               </div>
               )}
 
               {/* Premier Plans - Show to all non-premier users */}
-              <div className={`border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative ${profile.tier !== 'free' ? 'md:col-span-2' : ''}`}>
+              <div id="premier-plan" className={`border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative ${profile.tier !== 'free' ? 'md:col-span-2' : ''}`}>
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
                   BEST VALUE
                 </div>
@@ -432,7 +543,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-purple-500">✓</span>
-                    Buy more AI credits: $5/100 images
+                    Buy more AI credits: $5/50 images
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-purple-500">✓</span>
@@ -445,23 +556,33 @@ export default function Home() {
                     onClick={() => handleUpgrade('premier_weekly')}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                   >
-                    Weekly - $9.99
+                    Weekly - $6.99
                   </Button>
                   <Button
                     onClick={() => handleUpgrade('premier_monthly')}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                   >
-                    Monthly - $25.99
+                    Monthly - $14.99
                   </Button>
                   <Button
                     onClick={() => handleUpgrade('premier_yearly')}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                   >
-                    Yearly - $280 ⭐
+                    Yearly - $79 ⭐
                   </Button>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 24-hour notice - Only show to logged-in users */}
+        {user && profile && (
+          <div className="max-w-2xl mx-auto mb-12 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-sm text-blue-800 dark:text-blue-300 text-center">
+              <strong>⏰ Important:</strong> Images are automatically deleted after 24 hours. 
+              Please download your enhanced images within this timeframe to keep them permanently.
+            </p>
           </div>
         )}
 
@@ -494,34 +615,65 @@ export default function Home() {
                   />
                 </label>
               ) : (
-                <div className="relative w-full h-64 rounded-lg overflow-hidden border bg-muted/30">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={filterPreviewUrl || previewUrl}
-                    alt="Preview"
-                    className="w-full h-full object-contain transition-opacity duration-300"
-                    style={{ opacity: isApplyingFilter ? 0.7 : 1 }}
-                  />
-                  {isApplyingFilter && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                      <Loader2 className="h-8 w-8 animate-spin text-white" />
-                    </div>
-                  )}
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="destructive"
-                    className="absolute top-2 right-2"
-                    onClick={clearSelection}
-                    disabled={isGenerating}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  {filterPreviewUrl && (
-                    <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      Preview: {selectedFilter === 'bw' ? 'B&W' : selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)}
-                    </div>
-                  )}
+                <div className="space-y-2">
+                  {/* Crop and Undo Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCropClick}
+                      disabled={isGenerating || isCropping}
+                      className="flex items-center gap-2"
+                    >
+                      <Crop className="h-4 w-4" />
+                      Crop & Rotate
+                    </Button>
+                    {croppedImageUrl && !hasUndoneCrop && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleUndoCrop}
+                        disabled={isGenerating || isCropping}
+                        className="flex items-center gap-2"
+                      >
+                        <Undo2 className="h-4 w-4" />
+                        Undo Crop
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Preview Image */}
+                  <div className="relative w-full h-64 rounded-lg overflow-hidden border bg-muted/30">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={filterPreviewUrl || previewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-contain transition-opacity duration-300"
+                      style={{ opacity: isApplyingFilter ? 0.7 : 1 }}
+                    />
+                    {isApplyingFilter && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <Loader2 className="h-8 w-8 animate-spin text-white" />
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="destructive"
+                      className="absolute top-2 right-2"
+                      onClick={clearSelection}
+                      disabled={isGenerating}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    {(filterPreviewUrl || selectedFilter === 'original') && (
+                      <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                        Preview: {selectedFilter === 'original' ? 'Original' : selectedFilter === 'bw' ? 'B&W' : selectedFilter.charAt(0).toUpperCase() + selectedFilter.slice(1)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -585,11 +737,41 @@ export default function Home() {
               </div>
             )}
 
+            {/* AI Button for Free Users */}
+            {selectedFile && !isPremierUser && user && profile && profile.tier === 'free' && (
+              <div className="mb-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const premierPlan = document.getElementById('premier-plan');
+                    if (premierPlan) {
+                      premierPlan.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                  disabled={isGenerating}
+                >
+                  AI Enhancement - Upgrade to Premier Plan
+                </Button>
+              </div>
+            )}
+
             {/* Filter Selection (only for non-AI enhancement) */}
             {selectedFile && !useAI && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Choose Filter Style (Free Preview):</label>
-                <div className="grid grid-cols-5 gap-2">
+                <label className="text-sm font-medium">
+                  Choose Filter Style (Free Preview without AI, sign in to use AI to create one image for{' '}
+                  <span className="font-bold animate-flash animate-rainbow">FREE</span>):
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  <Button
+                    type="button"
+                    variant={selectedFilter === 'original' ? "default" : "outline"}
+                    onClick={() => handleFilterSelect('original')}
+                    disabled={isGenerating || isApplyingFilter}
+                  >
+                    Original
+                  </Button>
                   {(Object.keys(FILTER_PRESETS) as Array<keyof typeof FILTER_PRESETS>).map((filter) => (
                     <Button
                       key={filter}
@@ -656,6 +838,7 @@ export default function Home() {
                 likes={image.likes}
                 isLiked={image.isLiked}
                 onLike={handleLike}
+                createdAt={image.createdAt}
               />
             ))}
           </div>
@@ -677,6 +860,15 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Image Cropper Modal */}
+      {isCropping && previewUrl && (
+        <ImageCropper
+          imageSrc={previewUrl}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 }

@@ -134,4 +134,45 @@
   .animate-shimmer {
     animation: shimmer 2s infinite;
   }
+  
+  @keyframes flash {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+  
+  @keyframes rainbow {
+    0% {
+      color: #ff0000; /* Red */
+    }
+    16.66% {
+      color: #ff7f00; /* Orange */
+    }
+    33.33% {
+      color: #ffff00; /* Yellow */
+    }
+    50% {
+      color: #00ff00; /* Green */
+    }
+    66.66% {
+      color: #0000ff; /* Blue */
+    }
+    83.33% {
+      color: #4b0082; /* Indigo */
+    }
+    100% {
+      color: #9400d3; /* Violet */
+    }
+  }
+  
+  .animate-flash {
+    animation: flash 1s infinite;
+  }
+  
+  .animate-rainbow {
+    animation: rainbow 2s infinite;
+  }
 }

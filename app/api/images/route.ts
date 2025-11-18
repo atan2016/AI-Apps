@@ -7,10 +7,17 @@ const supabase = supabaseAdmin();
 // GET - Fetch user images
 export async function GET() {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
+    let userId: string | null = null;
+    
+    if (!SKIP_AUTH) {
+      const authResult = await auth();
+      userId = authResult.userId;
+      if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized. Please sign in or sign up.' }, { status: 401 });
+      }
+    } else {
+      userId = 'test-user-skip-auth';
     }
 
     const { data: images, error } = await supabase
@@ -29,6 +36,7 @@ export async function GET() {
       prompt: img.prompt || 'Enhanced Image',
       likes: img.likes || 0,
       isLiked: false,
+      createdAt: img.created_at,
     })) || [];
 
     return NextResponse.json(formattedImages);
