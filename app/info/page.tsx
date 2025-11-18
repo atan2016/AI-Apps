@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ExampleGallery } from "@/components/ExampleGallery";
 import { getExampleImages } from "@/lib/exampleImages";
+
+// Info page - accessible without login
 import { 
   Sparkles, 
   Crop, 

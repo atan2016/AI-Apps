@@ -1,5 +1,6 @@
 "use client";
 
+// Subscriptions management page - requires authentication
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
