@@ -43,6 +43,7 @@ export default function Home() {
   const [originalImageBeforeCrop, setOriginalImageBeforeCrop] = useState<string | null>(null);
   const [hasUndoneCrop, setHasUndoneCrop] = useState(false);
   const [croppedImageUrl, setCroppedImageUrl] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [rotationAngle, setRotationAngle] = useState(0);
   const [originalFileBeforeCrop, setOriginalFileBeforeCrop] = useState<File | null>(null);
 

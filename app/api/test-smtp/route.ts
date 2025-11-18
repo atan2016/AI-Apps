@@ -1,12 +1,32 @@
 import { NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/email';
 
 /**
  * GET /api/test-smtp
  * Detailed SMTP testing endpoint with diagnostics
  */
+interface DiagnosticTest {
+  test: string;
+  status: string;
+  message: string;
+  error?: string;
+  messageId?: string;
+  troubleshooting?: string[];
+}
+
+interface Diagnostics {
+  timestamp: string;
+  smtpConfig: {
+    host: string;
+    port: string;
+    user: string;
+    pass: string;
+    from: string;
+  };
+  tests: DiagnosticTest[];
+}
+
 export async function GET() {
-  const diagnostics: any = {
+  const diagnostics: Diagnostics = {
     timestamp: new Date().toISOString(),
     smtpConfig: {
       host: process.env.SMTP_HOST ? '✅ Set' : '❌ Missing',
@@ -15,7 +35,7 @@ export async function GET() {
       pass: process.env.SMTP_PASS ? '✅ Set (***hidden***)' : '❌ Missing',
       from: process.env.SMTP_FROM || 'Using default',
     },
-    tests: [] as any[],
+    tests: [] as DiagnosticTest[],
   };
 
   // Check if all required SMTP settings are present
@@ -57,6 +77,7 @@ export async function GET() {
   }
 
   // Test 2: Create transporter
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let transporter: any;
   try {
     const nodemailer = await import('nodemailer');

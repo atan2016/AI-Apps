@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Loader2, CreditCard, Calendar, X, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { Loader2, CreditCard, Calendar, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 
 interface SubscriptionData {
   subscription: {
@@ -454,7 +454,7 @@ export default function SubscriptionsPage() {
                       <div className="p-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                         <p className="text-sm text-yellow-800 dark:text-yellow-300">
                           <strong>Subscription will be cancelled</strong> on{" "}
-                          {formatDate(subscriptionData.subscription.current_period_end)}. You'll continue to have
+                          {formatDate(subscriptionData.subscription.current_period_end)}. You&apos;ll continue to have
                           access until then.
                         </p>
                       </div>
@@ -513,7 +513,7 @@ export default function SubscriptionsPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">
-                      Your subscription will remain active until the end of the current billing period. You'll
+                      Your subscription will remain active until the end of the current billing period. You&apos;ll
                       continue to have access to all features until{" "}
                       {subscriptionData.subscription &&
                         formatDate(subscriptionData.subscription.current_period_end)}

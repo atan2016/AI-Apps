@@ -116,7 +116,7 @@ export async function GET() {
 }
 
 // DELETE - Cancel subscription
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;

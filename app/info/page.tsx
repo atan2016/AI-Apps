@@ -174,7 +174,7 @@ export default function InfoPage() {
               <h3 className="text-xl font-semibold">Simple & Intuitive</h3>
             </div>
             <p className="text-muted-foreground">
-              Upload, enhance, and download - it's that simple. Our clean interface makes 
+              Upload, enhance, and download - it&apos;s that simple. Our clean interface makes 
               photo enhancement accessible to everyone, no technical skills required.
             </p>
           </div>

@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 // GET - Debug endpoint to see all Stripe data for the current user
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;
@@ -46,7 +46,81 @@ export async function GET(request: NextRequest) {
       userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
     }
 
-    const debugInfo: any = {
+    interface DebugInfo {
+      profile: {
+        user_id: string;
+        tier: string;
+        credits: number;
+        ai_credits: number;
+        stripe_customer_id: string | null;
+        stripe_subscription_id: string | null;
+      };
+      userEmail: string | null;
+      customersByEmail?: Array<{
+        id: string;
+        email: string | null;
+        created: string;
+        metadata: Record<string, string>;
+      }>;
+      subscriptions?: Array<{
+        subscriptionId: string;
+        customerId: string;
+        status: string;
+        created: string | null;
+        currentPeriodStart: string | null;
+        currentPeriodEnd: string | null;
+        cancelAtPeriodEnd: boolean;
+        price: {
+          id: string | undefined;
+          amount: string | null;
+          currency: string | undefined;
+          interval: string | undefined;
+          intervalCount: number | undefined;
+        };
+        dateError?: string;
+      }>;
+      subscriptionsByCustomerId?: Array<{
+        subscriptionId: string;
+        status: string;
+        created: string | null;
+        currentPeriodStart: string | null;
+        currentPeriodEnd: string | null;
+        cancelAtPeriodEnd: boolean;
+        price: {
+          id: string | undefined;
+          amount: string | null;
+          currency: string | undefined;
+          interval: string | undefined;
+          intervalCount: number | undefined;
+        };
+        dateError?: string;
+      }>;
+      recentPaymentIntents?: Array<{
+        id: string;
+        amount: string;
+        currency: string;
+        status: string;
+        created: string;
+        customer: string | Stripe.Customer | Stripe.DeletedCustomer | null;
+      }>;
+      checkoutSessions?: Array<{
+        id: string;
+        status: string | null;
+        mode: string | null;
+        amountTotal: string | null;
+        currency: string | null;
+        created: string | null;
+        subscription: string | Stripe.Subscription | null;
+        metadata: Record<string, string> | null;
+        dateError?: string;
+      }>;
+      customerError?: string;
+      subscriptionError?: string;
+      paymentIntentError?: string;
+      checkoutSessionError?: string;
+    }
+
+    const debugInfo: DebugInfo = {
       profile: {
         user_id: profile.user_id,
         tier: profile.tier,

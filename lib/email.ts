@@ -35,7 +35,7 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     let nodemailer;
     try {
       nodemailer = await import('nodemailer');
-    } catch (importError) {
+    } catch {
       console.warn('nodemailer not installed. Install it with: npm install nodemailer');
       console.log('Email content logged above. Configure SMTP or install nodemailer to send emails.');
       return;

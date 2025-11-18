@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        tier: tier as any,
+        tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
         credits: 999999,
         ai_credits: isPremier ? 100 : 0,
         updated_at: new Date().toISOString(),

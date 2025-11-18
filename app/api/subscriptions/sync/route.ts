@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 // POST - Manually sync subscription status from Stripe
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;
@@ -104,8 +104,6 @@ export async function POST(request: NextRequest) {
           if (amount === 79.00 && priceInterval === 'year') {
             tier = 'premier_yearly';
           } else if (amount === 14.99 && priceInterval === 'month') {
-            // Could be basic yearly or premier monthly - check if it's premier by looking at product
-            const productId = activeSubscription.items.data[0]?.price.product;
             // If we can't determine, default to premier_monthly for $14.99/month
             tier = 'premier_monthly';
           } else if (amount === 6.99 && priceInterval === 'week') {
@@ -140,7 +138,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
-            tier: tier as any,
+            tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
             credits: 999999,
             ai_credits: isPremier ? 100 : 0,
             stripe_subscription_id: activeSubscription.id,
@@ -253,7 +251,7 @@ export async function POST(request: NextRequest) {
                 await supabase
                   .from('profiles')
                   .update({
-                    tier: tier as any,
+                    tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
                     credits: 999999,
                     ai_credits: isPremier ? 100 : 0,
                     stripe_subscription_id: activeSubscription.id,
@@ -343,7 +341,7 @@ export async function POST(request: NextRequest) {
           await supabase
             .from('profiles')
             .update({
-              tier: tier as any,
+              tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
               credits: 999999,
               ai_credits: isPremier ? 100 : 0,
               updated_at: new Date().toISOString(),
