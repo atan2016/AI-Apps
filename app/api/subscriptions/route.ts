@@ -66,19 +66,22 @@ export async function GET() {
       const currency = subscription.items.data[0]?.price.currency || 'usd';
 
       // Calculate next billing date
-      const nextBillingDate = subscription.current_period_end
-        ? new Date(subscription.current_period_end * 1000).toISOString()
+      // Access properties with type assertion - Stripe API returns full Subscription object
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subData = subscription as any;
+      const nextBillingDate = subData.current_period_end
+        ? new Date(subData.current_period_end * 1000).toISOString()
         : null;
 
       return NextResponse.json({
         subscription: {
           id: subscription.id,
           status: subscription.status,
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          cancel_at_period_end: subscription.cancel_at_period_end,
-          canceled_at: subscription.canceled_at
-            ? new Date(subscription.canceled_at * 1000).toISOString()
+          current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: subData.cancel_at_period_end,
+          canceled_at: subData.canceled_at
+            ? new Date(subData.canceled_at * 1000).toISOString()
             : null,
         },
         plan: {
@@ -146,18 +149,21 @@ export async function DELETE() {
     }
 
     // Cancel subscription in Stripe (cancels at period end)
-    const subscription = await stripe.subscriptions.update(
+    const subscriptionResponse = await stripe.subscriptions.update(
       profile.stripe_subscription_id,
       {
         cancel_at_period_end: true,
       }
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subData = subscriptionResponse as any;
+
     return NextResponse.json({
       success: true,
       message: 'Subscription will be cancelled at the end of the current billing period',
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      cancel_at_period_end: subData.cancel_at_period_end,
+      current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
     });
   } catch (error) {
     console.error('Error cancelling subscription:', error);

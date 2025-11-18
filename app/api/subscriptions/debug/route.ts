@@ -156,17 +156,21 @@ export async function GET() {
 
           debugInfo.subscriptions = debugInfo.subscriptions || [];
           for (const sub of subscriptions.data) {
+            const price = sub.items.data[0]?.price;
+            // Type guard: ensure we have a full Subscription object
             const subscription = sub as Stripe.Subscription;
-            const price = subscription.items.data[0]?.price;
+            const currentPeriodStart: number | null = 'current_period_start' in subscription ? (subscription.current_period_start as number) : null;
+            const currentPeriodEnd: number | null = 'current_period_end' in subscription ? (subscription.current_period_end as number) : null;
+            const cancelAtPeriodEnd: boolean = 'cancel_at_period_end' in subscription ? (subscription.cancel_at_period_end as boolean) : false;
             try {
               debugInfo.subscriptions.push({
-                subscriptionId: subscription.id,
+                subscriptionId: sub.id,
                 customerId: customer.id,
-                status: subscription.status,
-                created: subscription.created ? new Date(subscription.created * 1000).toISOString() : null,
-                currentPeriodStart: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
-                currentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
-                cancelAtPeriodEnd: subscription.cancel_at_period_end,
+                status: sub.status,
+                created: sub.created ? new Date(sub.created * 1000).toISOString() : null,
+                currentPeriodStart: currentPeriodStart ? new Date(currentPeriodStart * 1000).toISOString() : null,
+                currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
+                cancelAtPeriodEnd: cancelAtPeriodEnd,
                 price: {
                   id: price?.id,
                   amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
@@ -176,14 +180,18 @@ export async function GET() {
                 },
               });
             } catch (dateError) {
+              const subscription = sub as Stripe.Subscription;
+              const currentPeriodStart: number | null = 'current_period_start' in subscription ? (subscription.current_period_start as number) : null;
+              const currentPeriodEnd: number | null = 'current_period_end' in subscription ? (subscription.current_period_end as number) : null;
+              const cancelAtPeriodEnd: boolean = 'cancel_at_period_end' in subscription ? (subscription.cancel_at_period_end as boolean) : false;
               debugInfo.subscriptions.push({
-                subscriptionId: subscription.id,
+                subscriptionId: sub.id,
                 customerId: customer.id,
-                status: subscription.status,
-                created: subscription.created?.toString() || null,
-                currentPeriodStart: subscription.current_period_start?.toString() || null,
-                currentPeriodEnd: subscription.current_period_end?.toString() || null,
-                cancelAtPeriodEnd: subscription.cancel_at_period_end,
+                status: sub.status,
+                created: sub.created?.toString() || null,
+                currentPeriodStart: currentPeriodStart?.toString() || null,
+                currentPeriodEnd: currentPeriodEnd?.toString() || null,
+                cancelAtPeriodEnd: cancelAtPeriodEnd,
                 price: {
                   id: price?.id,
                   amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
@@ -212,15 +220,19 @@ export async function GET() {
 
         debugInfo.subscriptionsByCustomerId = subscriptions.data.map(sub => {
           const price = sub.items.data[0]?.price;
+          // Type guard: ensure we have a full Subscription object
           const subscription = sub as Stripe.Subscription;
+          const currentPeriodStart: number | null = 'current_period_start' in subscription ? (subscription.current_period_start as number) : null;
+          const currentPeriodEnd: number | null = 'current_period_end' in subscription ? (subscription.current_period_end as number) : null;
+          const cancelAtPeriodEnd: boolean = 'cancel_at_period_end' in subscription ? (subscription.cancel_at_period_end as boolean) : false;
           try {
             return {
               subscriptionId: sub.id,
               status: sub.status,
               created: sub.created ? new Date(sub.created * 1000).toISOString() : null,
-              currentPeriodStart: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
-              currentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
-              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+              currentPeriodStart: currentPeriodStart ? new Date(currentPeriodStart * 1000).toISOString() : null,
+              currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : null,
+              cancelAtPeriodEnd: cancelAtPeriodEnd,
               price: {
                 id: price?.id,
                 amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
@@ -231,13 +243,16 @@ export async function GET() {
             };
           } catch (dateError) {
             const subscription = sub as Stripe.Subscription;
+            const currentPeriodStart: number | null = 'current_period_start' in subscription ? (subscription.current_period_start as number) : null;
+            const currentPeriodEnd: number | null = 'current_period_end' in subscription ? (subscription.current_period_end as number) : null;
+            const cancelAtPeriodEnd: boolean = 'cancel_at_period_end' in subscription ? (subscription.cancel_at_period_end as boolean) : false;
             return {
               subscriptionId: sub.id,
               status: sub.status,
               created: sub.created?.toString() || null,
-              currentPeriodStart: subscription.current_period_start?.toString() || null,
-              currentPeriodEnd: subscription.current_period_end?.toString() || null,
-              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+              currentPeriodStart: currentPeriodStart?.toString() || null,
+              currentPeriodEnd: currentPeriodEnd?.toString() || null,
+              cancelAtPeriodEnd: cancelAtPeriodEnd,
               price: {
                 id: price?.id,
                 amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
