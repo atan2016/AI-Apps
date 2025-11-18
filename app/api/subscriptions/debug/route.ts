@@ -156,16 +156,17 @@ export async function GET() {
 
           debugInfo.subscriptions = debugInfo.subscriptions || [];
           for (const sub of subscriptions.data) {
-            const price = sub.items.data[0]?.price;
+            const subscription = sub as Stripe.Subscription;
+            const price = subscription.items.data[0]?.price;
             try {
               debugInfo.subscriptions.push({
-                subscriptionId: sub.id,
+                subscriptionId: subscription.id,
                 customerId: customer.id,
-                status: sub.status,
-                created: sub.created ? new Date(sub.created * 1000).toISOString() : null,
-                currentPeriodStart: (sub as Stripe.Subscription).current_period_start ? new Date((sub as Stripe.Subscription).current_period_start * 1000).toISOString() : null,
-                currentPeriodEnd: (sub as Stripe.Subscription).current_period_end ? new Date((sub as Stripe.Subscription).current_period_end * 1000).toISOString() : null,
-                cancelAtPeriodEnd: (sub as Stripe.Subscription).cancel_at_period_end,
+                status: subscription.status,
+                created: subscription.created ? new Date(subscription.created * 1000).toISOString() : null,
+                currentPeriodStart: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
+                currentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+                cancelAtPeriodEnd: subscription.cancel_at_period_end,
                 price: {
                   id: price?.id,
                   amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
@@ -175,12 +176,11 @@ export async function GET() {
                 },
               });
             } catch (dateError) {
-              const subscription = sub as Stripe.Subscription;
               debugInfo.subscriptions.push({
-                subscriptionId: sub.id,
+                subscriptionId: subscription.id,
                 customerId: customer.id,
-                status: sub.status,
-                created: sub.created?.toString() || null,
+                status: subscription.status,
+                created: subscription.created?.toString() || null,
                 currentPeriodStart: subscription.current_period_start?.toString() || null,
                 currentPeriodEnd: subscription.current_period_end?.toString() || null,
                 cancelAtPeriodEnd: subscription.cancel_at_period_end,
