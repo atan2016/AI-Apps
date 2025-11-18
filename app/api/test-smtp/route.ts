@@ -56,7 +56,7 @@ export async function GET() {
 
   // Test 1: Check if nodemailer is available
   try {
-    const nodemailer = await import('nodemailer');
+    await import('nodemailer');
     diagnostics.tests.push({
       test: 'Nodemailer import',
       status: '✅ Success',
