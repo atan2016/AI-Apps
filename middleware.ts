@@ -18,6 +18,8 @@ const isPublicRoute = createRouteMatcher([
   `${BASE_PATH}/info(.*)`,
   '/api/generate(.*)',
   `${BASE_PATH}/api/generate(.*)`,
+  '/api/images/download(.*)',
+  `${BASE_PATH}/api/images/download(.*)`,
   '/api/stripe/webhook(.*)',
   `${BASE_PATH}/api/stripe/webhook(.*)`,
   '/sign-in(.*)',

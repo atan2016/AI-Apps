@@ -7,6 +7,14 @@ const supabase = supabaseAdmin();
 // POST - Manually update subscription tier (for testing/debugging)
 // This bypasses Stripe lookup and directly updates the database
 export async function POST(request: NextRequest) {
+  // Restrict to development only
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'This endpoint is only available in development mode' },
+      { status: 403 }
+    );
+  }
+
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;

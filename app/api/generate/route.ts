@@ -9,43 +9,64 @@ const supabase = supabaseAdmin();
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds timeout
 
+// Helper function to get client IP
+function getClientIP(request: NextRequest): string | null {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIP = request.headers.get('x-real-ip');
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  if (realIP) {
+    return realIP;
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Skip auth if SKIP_AUTH flag is set
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;
+    let isGuest = false;
     
     if (!SKIP_AUTH) {
       // Get user ID from Clerk
       const authResult = await auth();
       userId = authResult.userId;
-      
-      if (!userId) {
-        return NextResponse.json(
-          { error: "Unauthorized. Please sign in or sign up." },
-          { status: 401 }
-        );
-      }
     } else {
       // Use a default test user ID when auth is skipped
       userId = 'test-user-skip-auth';
     }
 
-    const body = await request.text();
-    let imageUrl, enhancedUrl, useAI, aiModel, filterName;
-    
+    // Get client IP for abuse prevention
+    const clientIP = getClientIP(request);
+
+    // Read and parse request body once
+    let body;
     try {
-      const parsed = JSON.parse(body);
-      imageUrl = parsed.imageUrl;
-      enhancedUrl = parsed.enhancedUrl; // Client-side enhanced image
-      useAI = parsed.useAI || false;
-      aiModel = parsed.aiModel || 'gfpgan'; // AI model to use
-      filterName = parsed.filterName || 'Enhance'; // Enhancement method name
+      body = await request.json();
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
       return NextResponse.json(
         { error: "Invalid JSON in request body" },
         { status: 400 }
+      );
+    }
+
+    const { imageUrl, enhancedUrl, useAI = false, aiModel = 'gfpgan', filterName = 'Enhance', guestSessionId } = body;
+
+    // If no authenticated user and guestSessionId is provided, allow guest access
+    if (!userId && guestSessionId) {
+      isGuest = true;
+      userId = `guest_${guestSessionId}`;
+    }
+
+    // Require authentication if no user ID (either authenticated or guest)
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please sign in or sign up." },
+        { status: 401 }
       );
     }
 
@@ -63,55 +84,145 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user profile and check credits
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (profileError) {
-      // If profile doesn't exist, create it
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert({ user_id: userId, tier: 'free', credits: 1, ai_credits: 0 })
-        .select()
-        .single();
+    // Guest users: Only allow one free image (with or without AI)
+    if (isGuest) {
+      // Check if test guest mode is enabled (bypasses restrictions for testing)
+      // Check both NEXT_PUBLIC_ (client-side) and regular (server-side) env vars
+      const ENABLE_TEST_GUEST = process.env.NEXT_PUBLIC_ENABLE_TEST_GUEST === 'true' || process.env.ENABLE_TEST_GUEST === 'true';
       
-      if (createError) throw createError;
-      
-      // Use new profile for credit check
-      if (!newProfile || newProfile.credits < 1) {
-        return NextResponse.json(
-          { error: "Insufficient credits. Please upgrade your plan." },
-          { status: 402 }
-        );
-      }
-    } else {
-      // Check if AI enhancement is requested
-      if (useAI) {
-        // AI enhancement requires premier tier
-        if (!isPremierTier(profile.tier)) {
+      if (!ENABLE_TEST_GUEST) {
+        // Normal guest restrictions - only allow one free image
+        // First, check if this specific guest session already has an image
+        const { data: existingImages, error: checkError } = await supabase
+          .from('images')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+        
+        if (!checkError && existingImages && existingImages.length > 0) {
           return NextResponse.json(
-            { error: "AI enhancement requires a Premier plan. Please upgrade to Premier." },
+            { error: "You've already used your free image. Please sign up to create more images." },
             { status: 402 }
           );
         }
-        
-        // Check AI credits
-        if (profile.ai_credits < 1) {
-          return NextResponse.json(
-            { error: "Insufficient AI credits. Purchase more credits to continue." },
-            { status: 402 }
-          );
+
+        // Server-side abuse prevention: Check IP address to prevent clearing localStorage abuse
+        // Only check if we can get the client IP
+        if (clientIP) {
+          // Count guest images created from this IP in the last 24 hours
+          // We can't directly track IP in the database, so we'll use a heuristic:
+          // Check if there are multiple different guest sessions that might be from the same IP
+          // by checking recent guest images and limiting per IP (approximate)
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { data: recentGuestImages } = await supabase
+            .from('images')
+            .select('user_id, created_at')
+            .like('user_id', 'guest_%')
+            .gte('created_at', oneDayAgo)
+            .order('created_at', { ascending: false });
+          
+          if (recentGuestImages) {
+            // Count unique guest sessions from the last 24 hours
+            // Since we can't track IP directly, we use a global threshold
+            // Each guest session is already limited to 1 image, so this is just for extreme abuse prevention
+            const uniqueGuestSessions = new Set(recentGuestImages.map(img => img.user_id));
+            
+            // Only block if there are 100+ unique guest sessions in the last 24 hours globally
+            // This is a very high threshold to prevent extreme abuse while allowing legitimate users
+            // Each legitimate user can only create 1 image per session anyway
+            if (uniqueGuestSessions.size >= 100) {
+              console.log(`Abuse prevention: Too many guest images created globally (${uniqueGuestSessions.size} in 24h)`);
+              return NextResponse.json(
+                { error: "You've reached the daily limit for guest images. Please sign up to create unlimited images." },
+                { status: 402 }
+              );
+            }
+          }
         }
       } else {
-        // Basic enhancement - check regular credits for free tier only
-        if (profile.tier === 'free' && profile.credits < 1) {
+        console.log('Test guest mode enabled - bypassing all guest restrictions');
+      }
+
+      // Create a temporary profile for guest user to satisfy foreign key constraint
+      // Check if profile already exists (shouldn't, but just in case)
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!existingProfile) {
+        // Create a guest profile entry
+        const { error: profileCreateError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: userId,
+            tier: 'free',
+            credits: 0, // Guest users don't use credits
+            ai_credits: 0,
+          });
+
+        if (profileCreateError) {
+          console.error("Error creating guest profile:", profileCreateError);
+          // Continue anyway - the insert might still work if constraint allows
+        }
+      }
+    }
+
+    // Get user profile and check credits (for logged-in users only)
+    let profile = null;
+    if (!isGuest) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileError) {
+        // If profile doesn't exist, create it
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({ user_id: userId, tier: 'free', credits: 1, ai_credits: 0 })
+          .select()
+          .single();
+        
+        if (createError) throw createError;
+        
+        // Use new profile for credit check
+        if (!newProfile || newProfile.credits < 1) {
           return NextResponse.json(
             { error: "Insufficient credits. Please upgrade your plan." },
             { status: 402 }
           );
+        }
+        profile = newProfile;
+      } else {
+        profile = profileData;
+        // Check if AI enhancement is requested
+        if (useAI) {
+          // AI enhancement requires premier tier
+          if (!isPremierTier(profile.tier)) {
+            return NextResponse.json(
+              { error: "AI enhancement requires a Premier plan. Please upgrade to Premier." },
+              { status: 402 }
+            );
+          }
+          
+          // Check AI credits
+          if (profile.ai_credits < 1) {
+            return NextResponse.json(
+              { error: "Insufficient AI credits. Purchase more credits to continue." },
+              { status: 402 }
+            );
+          }
+        } else {
+          // Basic enhancement - check regular credits for free tier only
+          if (profile.tier === 'free' && profile.credits < 1) {
+            return NextResponse.json(
+              { error: "Insufficient credits. Please upgrade your plan." },
+              { status: 402 }
+            );
+          }
         }
       }
     }
@@ -170,8 +281,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Deduct credits based on enhancement type
-    if (profile) {
+    // Deduct credits based on enhancement type (logged-in users only)
+    if (!isGuest && profile) {
       if (useAI) {
         // Deduct AI credit for premier users
         const { error: updateError } = await supabase
@@ -210,14 +321,16 @@ export async function POST(request: NextRequest) {
         original_url: storageOriginalUrl,
         enhanced_url: storageEnhancedUrl,
         prompt: methodLabel,
+        likes: 0, // Initialize likes to 0
       })
       .select()
       .single();
 
     if (imageError) {
       console.error("Error saving image:", imageError);
+      console.error("Image error details:", JSON.stringify(imageError, null, 2));
       return NextResponse.json(
-        { error: "Failed to save image record. Please try again." },
+        { error: `Failed to save image record: ${imageError.message || 'Unknown error'}. Please try again.` },
         { status: 500 }
       );
     }
@@ -226,8 +339,9 @@ export async function POST(request: NextRequest) {
       success: true, 
       imageUrl: storageEnhancedUrl,
       imageId: imageRecord?.id,
-      creditsRemaining: profile?.tier === 'free' ? profile.credits - 1 : null,
-      aiCreditsRemaining: useAI && profile ? profile.ai_credits - 1 : profile?.ai_credits || 0
+      creditsRemaining: !isGuest && profile?.tier === 'free' ? profile.credits - 1 : null,
+      aiCreditsRemaining: !isGuest && useAI && profile ? profile.ai_credits - 1 : (!isGuest ? profile?.ai_credits || 0 : 0),
+      isGuest: isGuest
     });
   } catch (error) {
     console.error("Error enhancing image:", error);

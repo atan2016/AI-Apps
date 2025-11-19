@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Heart, Download, Eye, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { PlansModal } from "@/components/PlansModal";
+import { useUser } from "@clerk/nextjs";
 
 interface EmojiCardProps {
   id: string;
@@ -27,10 +29,13 @@ export function EmojiCard({
   onLike,
   createdAt
 }: EmojiCardProps) {
+  const { user, isLoaded } = useUser();
   const [isHovered, setIsHovered] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [showPlansModal, setShowPlansModal] = useState(false);
+  const [plansModalAction, setPlansModalAction] = useState<'download' | 'zoom'>('download');
   
   // Calculate hours until deletion (24 hours from creation)
   const getHoursUntilDeletion = (): number | null => {
@@ -45,20 +50,70 @@ export function EmojiCard({
   const hoursRemaining = getHoursUntilDeletion();
   const isExpiringSoon = hoursRemaining !== null && hoursRemaining <= 6 && hoursRemaining > 0;
 
+  const checkAuthAndPrompt = (action: 'download' | 'zoom'): boolean => {
+    // Check if user is logged in
+    if (isLoaded && !user) {
+      // Show plans modal instead of simple confirm
+      setPlansModalAction(action);
+      setShowPlansModal(true);
+      return false; // Block the action
+    }
+    return true; // Allow the action
+  };
+
+  const handleZoom = () => {
+    if (checkAuthAndPrompt('zoom')) {
+      setShowLightbox(true);
+    }
+  };
+
   const handleDownload = async () => {
+    if (!checkAuthAndPrompt('download')) {
+      return;
+    }
+
     try {
-      const response = await fetch(imageUrl);
+      // Use proxy endpoint for downloads to handle CORS and authentication issues
+      const downloadUrl = `/api/images/download?url=${encodeURIComponent(imageUrl)}`;
+      console.log('Attempting to download from:', downloadUrl);
+      
+      const response = await fetch(downloadUrl);
+      
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = `Failed to download: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // If response is not JSON, use the status text
+        }
+        throw new Error(errorMessage);
+      }
+      
+      // Check if response is actually an image
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        // Might be a JSON error response
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Invalid response from server');
+      }
+      
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `emoji-${prompt.replace(/\s+/g, "-")}.png`;
+      a.download = `enhanced-${prompt.replace(/\s+/g, "-")}.png`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      console.error("Failed to download emoji:", error);
+      console.error("Failed to download image:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to download image. Please try again.";
+      alert(errorMessage);
     }
   };
 
@@ -71,7 +126,7 @@ export function EmojiCard({
       {/* Image container */}
       <div 
         className="relative aspect-square bg-gradient-to-br from-muted/50 to-muted cursor-pointer"
-        onClick={() => !showComparison && setShowLightbox(true)}
+        onClick={() => !showComparison && handleZoom()}
       >
         {showComparison && originalUrl ? (
           // Comparison view: Original vs Enhanced
@@ -137,7 +192,7 @@ export function EmojiCard({
             className="bg-white/90 hover:bg-white text-black"
             onClick={(e) => {
               e.stopPropagation();
-              setShowLightbox(true);
+              handleZoom();
             }}
             title="Zoom in"
           >
@@ -220,6 +275,13 @@ export function EmojiCard({
         prompt={prompt}
         isOpen={showLightbox}
         onClose={() => setShowLightbox(false)}
+      />
+
+      {/* Plans Modal */}
+      <PlansModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
+        action={plansModalAction}
       />
     </div>
   );

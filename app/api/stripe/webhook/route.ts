@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
             .update({
               credits: 999999, // Unlimited for active subscriptions
               ai_credits: isPremier ? 100 : profile.ai_credits, // Reset to 100 for premier on renewal
+              cancel_at_period_end: subscription.cancel_at_period_end || false, // Sync cancellation status with Stripe
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', profile.user_id);
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
               credits: 0, // No credits when subscription cancelled
               ai_credits: 0, // Remove AI credits too
               stripe_subscription_id: null,
+              cancel_at_period_end: false, // Clear cancellation flag since subscription has ended
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', profile.user_id);

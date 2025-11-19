@@ -88,7 +88,7 @@ export async function POST() {
           'price_1SSsLiJtYXMzJCdN3oQB39hZ': 'weekly',
           'price_1SSsMCJtYXMzJCdN1xaQfKmu': 'monthly',
           'price_1SSsNbJtYXMzJCdNcdAOA1ZK': 'yearly',
-          'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly',
+          'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly', // Legacy - maps to correct tier
           'price_1ST7OPJtYXMzJCdNu32G50TH': 'premier_monthly',
           'price_1ST7NrJtYXMzJCdNB9QpyiY5': 'premier_yearly',
         };
@@ -221,7 +221,7 @@ export async function POST() {
                 'price_1SSsLiJtYXMzJCdN3oQB39hZ': 'weekly',
                 'price_1SSsMCJtYXMzJCdN1xaQfKmu': 'monthly',
                 'price_1SSsNbJtYXMzJCdNcdAOA1ZK': 'yearly',
-                'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly',
+                'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly', // Legacy - maps to correct tier
                 'price_1ST7OPJtYXMzJCdNu32G50TH': 'premier_monthly',
                 'price_1ST7NrJtYXMzJCdNB9QpyiY5': 'premier_yearly',
               };
@@ -304,7 +304,7 @@ export async function POST() {
             'price_1SSsLiJtYXMzJCdN3oQB39hZ': 'weekly',
             'price_1SSsMCJtYXMzJCdN1xaQfKmu': 'monthly',
             'price_1SSsNbJtYXMzJCdNcdAOA1ZK': 'yearly',
-            'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly',
+            'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly', // Legacy - maps to correct tier
             'price_1ST7OPJtYXMzJCdNu32G50TH': 'premier_monthly',
             'price_1ST7NrJtYXMzJCdNB9QpyiY5': 'premier_yearly',
           };

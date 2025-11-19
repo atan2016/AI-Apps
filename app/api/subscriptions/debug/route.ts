@@ -11,6 +11,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // GET - Debug endpoint to see all Stripe data for the current user
 export async function GET() {
+  // Restrict to development only
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'This endpoint is only available in development mode' },
+      { status: 403 }
+    );
+  }
+
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;

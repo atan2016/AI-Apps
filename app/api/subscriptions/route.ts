@@ -39,14 +39,31 @@ export async function GET() {
       );
     }
 
-    // If no subscription, return free tier info
-    if (!profile.stripe_subscription_id) {
+    // Check if user is on free tier (not just if they have a Stripe subscription)
+    // A user might have a paid tier but no Stripe subscription ID if webhook didn't fire yet
+    const isFreeTier = profile.tier === 'free';
+    
+    // If no subscription and on free tier, return free tier info
+    if (!profile.stripe_subscription_id && isFreeTier) {
       return NextResponse.json({
         subscription: null,
         tier: profile.tier,
         credits: profile.credits,
         ai_credits: profile.ai_credits,
         isFree: true,
+      });
+    }
+    
+    // If user has a paid tier but no Stripe subscription, they might be in a transition state
+    // Still show their tier but indicate subscription might need syncing
+    if (!profile.stripe_subscription_id && !isFreeTier) {
+      return NextResponse.json({
+        subscription: null,
+        tier: profile.tier,
+        credits: profile.credits,
+        ai_credits: profile.ai_credits,
+        isFree: false, // They have a paid tier, so not free
+        error: 'Subscription ID not found. Please sync your subscription.',
       });
     }
 
@@ -64,25 +81,98 @@ export async function GET() {
       const product = subscription.items.data[0]?.price.product as Stripe.Product;
       const amount = subscription.items.data[0]?.price.unit_amount || 0;
       const currency = subscription.items.data[0]?.price.currency || 'usd';
+      
+      // Log price ID and amount for debugging
+      console.log('Subscription Price Details:', {
+        priceId: priceId,
+        amount: amount,
+        amountInDollars: (amount / 100).toFixed(2),
+        currency: currency,
+        interval: subscription.items.data[0]?.price.recurring?.interval,
+        subscriptionId: subscription.id,
+      });
 
       // Calculate next billing date
-      // Access properties with type assertion - Stripe API returns full Subscription object
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const subData = subscription as any;
-      const nextBillingDate = subData.current_period_end
-        ? new Date(subData.current_period_end * 1000).toISOString()
+      // Stripe subscription object has current_period_start and current_period_end as numbers (Unix timestamps)
+      // Helper function to safely convert timestamp to ISO string
+      const toISOString = (timestamp: number | null | undefined): string | null => {
+        if (timestamp === null || timestamp === undefined) {
+          return null;
+        }
+        if (typeof timestamp !== 'number' || isNaN(timestamp) || timestamp <= 0) {
+          console.warn('Invalid timestamp:', timestamp);
+          return null;
+        }
+        try {
+          const date = new Date(timestamp * 1000);
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid date from timestamp:', timestamp);
+            return null;
+          }
+          return date.toISOString();
+        } catch (error) {
+          console.error('Error converting timestamp to ISO:', error, timestamp);
+          return null;
+        }
+      };
+      
+      // Access properties directly from subscription object
+      // These should always be present for valid subscriptions
+      const currentPeriodStart = subscription.current_period_start 
+        ? toISOString(subscription.current_period_start) 
         : null;
+      const currentPeriodEnd = subscription.current_period_end 
+        ? toISOString(subscription.current_period_end) 
+        : null;
+      const nextBillingDate = currentPeriodEnd;
+      const canceledAt = subscription.canceled_at 
+        ? toISOString(subscription.canceled_at) 
+        : null;
+      const createdAt = subscription.created 
+        ? toISOString(subscription.created) 
+        : null;
+      
+      // Log if we're missing expected data (for debugging)
+      if (!currentPeriodStart || !currentPeriodEnd) {
+        console.warn('Missing subscription period data:', {
+          subscriptionId: subscription.id,
+          status: subscription.status,
+          current_period_start: subscription.current_period_start,
+          current_period_end: subscription.current_period_end,
+        });
+      }
+
+      // Sync cancellation status: If Supabase says not cancelled but Stripe says cancelled, update Stripe
+      // This handles cases where user manually updated Supabase or upgraded after cancellation
+      const stripeCancelStatus = subscription.cancel_at_period_end || false;
+      const supabaseCancelStatus = profile.cancel_at_period_end || false;
+      
+      if (stripeCancelStatus && !supabaseCancelStatus) {
+        // Supabase says not cancelled but Stripe says cancelled - sync Stripe to match Supabase
+        console.log(`Syncing cancellation status: Stripe has cancel_at_period_end=true but Supabase has false. Updating Stripe.`);
+        try {
+          await stripe.subscriptions.update(subscription.id, {
+            cancel_at_period_end: false,
+          });
+          console.log(`Successfully updated Stripe subscription ${subscription.id} to clear cancellation flag.`);
+        } catch (syncError) {
+          console.error('Error syncing cancellation status to Stripe:', syncError);
+          // Continue anyway - we'll use Supabase's value
+        }
+      }
+
+      // Use Supabase's cancellation status if it differs from Stripe (Supabase is source of truth after manual updates)
+      const finalCancelStatus = supabaseCancelStatus !== undefined ? supabaseCancelStatus : stripeCancelStatus;
 
       return NextResponse.json({
         subscription: {
           id: subscription.id,
           status: subscription.status,
-          current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
-          cancel_at_period_end: subData.cancel_at_period_end,
-          canceled_at: subData.canceled_at
-            ? new Date(subData.canceled_at * 1000).toISOString()
-            : null,
+          created: createdAt,
+          current_period_start: currentPeriodStart,
+          current_period_end: currentPeriodEnd,
+          cancel_at_period_end: finalCancelStatus,
+          canceled_at: canceledAt,
         },
         plan: {
           priceId,
@@ -90,6 +180,8 @@ export async function GET() {
           amount: amount / 100, // Convert from cents
           currency: currency.toUpperCase(),
           interval: subscription.items.data[0]?.price.recurring?.interval || 'month',
+          // Include raw amount for debugging
+          rawAmount: amount,
         },
         tier: profile.tier,
         credits: profile.credits,
@@ -158,6 +250,17 @@ export async function DELETE() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subData = subscriptionResponse as any;
+
+    // Update Supabase to track cancellation status
+    await supabase
+      .from('profiles')
+      .update({
+        cancel_at_period_end: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    console.log(`Subscription cancellation initiated for user ${userId}. Subscription ID: ${profile.stripe_subscription_id}, Cancel at period end: ${subData.cancel_at_period_end}, Period ends: ${new Date(subData.current_period_end * 1000).toISOString()}`);
 
     return NextResponse.json({
       success: true,

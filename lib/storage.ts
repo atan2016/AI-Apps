@@ -50,6 +50,16 @@ export async function uploadImageToStorage(
   // Convert data URL to buffer
   const buffer = dataURLtoBuffer(dataURL);
   
+  // Check buffer size (Supabase Storage typically has a 50MB limit, but some buckets may have lower limits)
+  const bufferSizeMB = buffer.length / (1024 * 1024);
+  const MAX_UPLOAD_SIZE_MB = 50; // Supabase default limit
+  
+  if (bufferSizeMB > MAX_UPLOAD_SIZE_MB) {
+    throw new Error(`Image is too large (${bufferSizeMB.toFixed(2)}MB). Maximum size is ${MAX_UPLOAD_SIZE_MB}MB. Please compress or resize your image.`);
+  }
+  
+  console.log(`Uploading image: ${bufferSizeMB.toFixed(2)}MB (${buffer.length} bytes)`);
+  
   // Create a path: user_id/filename
   const filePath = `${userId}/${filename}`;
   
@@ -63,6 +73,13 @@ export async function uploadImageToStorage(
   
   if (error) {
     console.error('Error uploading to Supabase Storage:', error);
+    console.error('Buffer size:', buffer.length, 'bytes (', bufferSizeMB.toFixed(2), 'MB)');
+    
+    // Provide more helpful error messages
+    if (error.message.includes('maximum allowed size') || error.message.includes('exceeded')) {
+      throw new Error(`Image is too large (${bufferSizeMB.toFixed(2)}MB). Please compress or resize your image before uploading. The Supabase Storage bucket may have a size limit configured.`);
+    }
+    
     throw new Error(`Failed to upload image: ${error.message}`);
   }
   
