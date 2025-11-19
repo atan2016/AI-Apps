@@ -265,7 +265,7 @@ export default function SubscriptionsPage() {
   };
 
   // Get the correct display price for a tier (overrides Stripe amount if needed)
-  const getTierPrice = (tier: string, interval: string): number => {
+  const getTierPrice = (tier: string): number => {
     const priceMap: { [key: string]: number } = {
       weekly: 2.99,
       monthly: 5.99,
@@ -658,7 +658,7 @@ export default function SubscriptionsPage() {
                       <div>
                         <p className="text-sm font-medium mb-1">Billing Amount</p>
                         <p className="text-lg">
-                          ${getTierPrice(subscriptionData.tier, subscriptionData.plan.interval).toFixed(2)}{" "}
+                          ${getTierPrice(subscriptionData.tier).toFixed(2)}{" "}
                           <span className="text-sm text-muted-foreground">
                             / {subscriptionData.plan.interval}
                           </span>
@@ -742,7 +742,7 @@ export default function SubscriptionsPage() {
                             {subscriptionData.plan.priceId}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Stripe Amount: ${subscriptionData.plan.amount.toFixed(2)} | Display Amount: ${getTierPrice(subscriptionData.tier, subscriptionData.plan.interval).toFixed(2)}
+                            Stripe Amount: ${subscriptionData.plan.amount.toFixed(2)} | Display Amount: ${getTierPrice(subscriptionData.tier).toFixed(2)}
                           </p>
                         </div>
                       )}
@@ -1173,7 +1173,7 @@ export default function SubscriptionsPage() {
                       Confirm Plan Change
                     </CardTitle>
                     <CardDescription>
-                      You're about to change your subscription plan
+                      You&apos;re about to change your subscription plan
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1184,7 +1184,7 @@ export default function SubscriptionsPage() {
                       <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1 list-disc list-inside">
                         <li>Your current plan will remain active until {subscriptionData?.nextBillingDate ? formatDate(subscriptionData.nextBillingDate) : 'the end of your billing period'}</li>
                         <li>The new plan ({pendingUpgrade.displayName} - {pendingUpgrade.price}) will start on your next billing date</li>
-                        <li>You'll be charged the new amount on your next billing cycle</li>
+                        <li>You&apos;ll be charged the new amount on your next billing cycle</li>
                         <li>No prorated charges will be applied</li>
                       </ul>
                     </div>
@@ -1234,7 +1234,7 @@ export default function SubscriptionsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      🎉 Awesome! You've successfully upgraded!
+                      🎉 Awesome! You&apos;ve successfully upgraded!
                     </CardTitle>
                     <CardDescription>
                       Congratulations on your upgrade!
@@ -1253,7 +1253,7 @@ export default function SubscriptionsPage() {
                           <span className="font-medium">Starts On:</span> {upgradeSuccessInfo.startDate}
                         </p>
                         <p className="text-xs mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                          Your current plan will remain active until then. You'll be charged the new amount on your next billing cycle.
+                          Your current plan will remain active until then. You&apos;ll be charged the new amount on your next billing cycle.
                         </p>
                       </div>
                     </div>

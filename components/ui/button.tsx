@@ -50,8 +50,8 @@ function Button({
 
   // Filter out Clerk-specific props that shouldn't be passed to DOM elements
   const {
-    afterSignUpUrl,
-    afterSignInUrl,
+    afterSignUpUrl: _afterSignUpUrl,
+    afterSignInUrl: _afterSignInUrl,
     ...domProps
   } = props as typeof props & {
     afterSignUpUrl?: string;

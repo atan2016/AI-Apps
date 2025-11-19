@@ -63,7 +63,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
       alert('Failed to start checkout. Please try again.');
       setIsProcessingCheckout(false);
     }
-  }, [isProcessingCheckout]);
+  }, [isProcessingCheckout, priceIds]);
 
   const handlePlanClick = (tier: string) => {
     if (user) {
@@ -190,7 +190,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('weekly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
@@ -206,7 +206,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('monthly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
@@ -222,7 +222,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('yearly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
@@ -301,7 +301,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('premier_weekly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
@@ -316,7 +316,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('premier_monthly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
@@ -331,7 +331,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
-                          onClick={(e) => {
+                          onClick={() => {
                             handlePlanClick('premier_yearly');
                             // Don't prevent default - let SignUpButton handle the modal
                           }}
