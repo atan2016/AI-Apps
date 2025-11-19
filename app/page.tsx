@@ -1168,15 +1168,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state with initial loading */}
-        {images.length === 0 && !isGenerating && (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground text-lg">
-              Upload an image to enhance your first photo
-            </p>
-          </div>
-        )}
-        
         {/* First generation loading state */}
         {isGenerating && images.length === 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

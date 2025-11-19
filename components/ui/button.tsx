@@ -48,11 +48,21 @@ function Button({
   }) {
   const Comp = asChild ? Slot : "button"
 
+  // Filter out Clerk-specific props that shouldn't be passed to DOM elements
+  const {
+    afterSignUpUrl,
+    afterSignInUrl,
+    ...domProps
+  } = props as typeof props & {
+    afterSignUpUrl?: string;
+    afterSignInUrl?: string;
+  };
+
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
+      {...domProps}
     />
   )
 }
