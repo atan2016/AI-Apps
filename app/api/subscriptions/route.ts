@@ -118,8 +118,9 @@ export async function GET() {
       
       // Access properties directly from subscription object
       // These should always be present for valid subscriptions
-      // Use type assertion to ensure TypeScript recognizes Stripe subscription properties
-      const sub = subscription as Stripe.Subscription;
+      // TypeScript doesn't recognize these properties when using expand option, but they exist
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sub = subscription as any;
       const currentPeriodStart = sub.current_period_start 
         ? toISOString(sub.current_period_start) 
         : null;
@@ -137,8 +138,8 @@ export async function GET() {
       // Log if we're missing expected data (for debugging)
       if (!currentPeriodStart || !currentPeriodEnd) {
         console.warn('Missing subscription period data:', {
-          subscriptionId: sub.id,
-          status: sub.status,
+          subscriptionId: subscription.id,
+          status: subscription.status,
           current_period_start: sub.current_period_start,
           current_period_end: sub.current_period_end,
         });
@@ -153,10 +154,10 @@ export async function GET() {
         // Supabase says not cancelled but Stripe says cancelled - sync Stripe to match Supabase
         console.log(`Syncing cancellation status: Stripe has cancel_at_period_end=true but Supabase has false. Updating Stripe.`);
         try {
-          await stripe.subscriptions.update(sub.id, {
+          await stripe.subscriptions.update(subscription.id, {
             cancel_at_period_end: false,
           });
-          console.log(`Successfully updated Stripe subscription ${sub.id} to clear cancellation flag.`);
+          console.log(`Successfully updated Stripe subscription ${subscription.id} to clear cancellation flag.`);
         } catch (syncError) {
           console.error('Error syncing cancellation status to Stripe:', syncError);
           // Continue anyway - we'll use Supabase's value
@@ -168,8 +169,8 @@ export async function GET() {
 
       return NextResponse.json({
         subscription: {
-          id: sub.id,
-          status: sub.status,
+          id: subscription.id,
+          status: subscription.status,
           created: createdAt,
           current_period_start: currentPeriodStart,
           current_period_end: currentPeriodEnd,

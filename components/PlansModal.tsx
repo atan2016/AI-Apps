@@ -186,8 +186,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                     <>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
@@ -202,8 +200,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                       </SignUpButton>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
@@ -218,8 +214,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                       </SignUpButton>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
@@ -297,8 +291,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                     <>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
@@ -312,8 +304,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                       </SignUpButton>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
@@ -327,8 +317,6 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                       </SignUpButton>
                       <SignUpButton 
                         mode="modal"
-                        afterSignUpUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-                        afterSignInUrl={typeof window !== 'undefined' ? window.location.href : '/'}
                       >
                         <Button
                           onClick={() => {
