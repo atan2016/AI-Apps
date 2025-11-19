@@ -49,15 +49,18 @@ function Button({
   const Comp = asChild ? Slot : "button"
 
   // Filter out Clerk-specific props that shouldn't be passed to DOM elements
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {
-    afterSignUpUrl: _afterSignUpUrl,
-    afterSignInUrl: _afterSignInUrl,
+    afterSignUpUrl,
+    afterSignInUrl,
     ...domProps
   } = props as typeof props & {
     afterSignUpUrl?: string;
     afterSignInUrl?: string;
   };
+  
+  // These props are intentionally filtered out and not used
+  void afterSignUpUrl;
+  void afterSignInUrl;
 
   return (
     <Comp

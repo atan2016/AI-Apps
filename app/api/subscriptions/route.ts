@@ -118,43 +118,45 @@ export async function GET() {
       
       // Access properties directly from subscription object
       // These should always be present for valid subscriptions
-      const currentPeriodStart = subscription.current_period_start 
-        ? toISOString(subscription.current_period_start) 
+      // Use type assertion to ensure TypeScript recognizes Stripe subscription properties
+      const sub = subscription as Stripe.Subscription;
+      const currentPeriodStart = sub.current_period_start 
+        ? toISOString(sub.current_period_start) 
         : null;
-      const currentPeriodEnd = subscription.current_period_end 
-        ? toISOString(subscription.current_period_end) 
+      const currentPeriodEnd = sub.current_period_end 
+        ? toISOString(sub.current_period_end) 
         : null;
       const nextBillingDate = currentPeriodEnd;
-      const canceledAt = subscription.canceled_at 
-        ? toISOString(subscription.canceled_at) 
+      const canceledAt = sub.canceled_at 
+        ? toISOString(sub.canceled_at) 
         : null;
-      const createdAt = subscription.created 
-        ? toISOString(subscription.created) 
+      const createdAt = sub.created 
+        ? toISOString(sub.created) 
         : null;
       
       // Log if we're missing expected data (for debugging)
       if (!currentPeriodStart || !currentPeriodEnd) {
         console.warn('Missing subscription period data:', {
-          subscriptionId: subscription.id,
-          status: subscription.status,
-          current_period_start: subscription.current_period_start,
-          current_period_end: subscription.current_period_end,
+          subscriptionId: sub.id,
+          status: sub.status,
+          current_period_start: sub.current_period_start,
+          current_period_end: sub.current_period_end,
         });
       }
 
       // Sync cancellation status: If Supabase says not cancelled but Stripe says cancelled, update Stripe
       // This handles cases where user manually updated Supabase or upgraded after cancellation
-      const stripeCancelStatus = subscription.cancel_at_period_end || false;
+      const stripeCancelStatus = sub.cancel_at_period_end || false;
       const supabaseCancelStatus = profile.cancel_at_period_end || false;
       
       if (stripeCancelStatus && !supabaseCancelStatus) {
         // Supabase says not cancelled but Stripe says cancelled - sync Stripe to match Supabase
         console.log(`Syncing cancellation status: Stripe has cancel_at_period_end=true but Supabase has false. Updating Stripe.`);
         try {
-          await stripe.subscriptions.update(subscription.id, {
+          await stripe.subscriptions.update(sub.id, {
             cancel_at_period_end: false,
           });
-          console.log(`Successfully updated Stripe subscription ${subscription.id} to clear cancellation flag.`);
+          console.log(`Successfully updated Stripe subscription ${sub.id} to clear cancellation flag.`);
         } catch (syncError) {
           console.error('Error syncing cancellation status to Stripe:', syncError);
           // Continue anyway - we'll use Supabase's value
@@ -166,8 +168,8 @@ export async function GET() {
 
       return NextResponse.json({
         subscription: {
-          id: subscription.id,
-          status: subscription.status,
+          id: sub.id,
+          status: sub.status,
           created: createdAt,
           current_period_start: currentPeriodStart,
           current_period_end: currentPeriodEnd,
