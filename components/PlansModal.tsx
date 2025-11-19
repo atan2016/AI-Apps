@@ -20,18 +20,18 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
 
   const actionText = action === 'download' ? 'download images' : 'view full-size images';
 
-  // Price IDs mapping
-  const priceIds: { [key: string]: string } = {
-    weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B', // $2.99/week
-    monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K', // $5.99/month
-    yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ', // $14.99/year
-    premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv', // $6.99/week
-    premier_monthly: 'price_1SUw74JtYXMzJCdNdo7CymJs', // $14.99/month
-    premier_yearly: 'price_1SUwZsJtYXMzJCdNuoGh5VrV', // $79.00/year
-  };
-
   const handleCheckout = useCallback(async (tier: string) => {
     if (isProcessingCheckout) return; // Prevent multiple calls
+    
+    // Price IDs mapping - defined inside callback to avoid dependency issues
+    const priceIds: { [key: string]: string } = {
+      weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B', // $2.99/week
+      monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K', // $5.99/month
+      yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ', // $14.99/year
+      premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv', // $6.99/week
+      premier_monthly: 'price_1SUw74JtYXMzJCdNdo7CymJs', // $14.99/month
+      premier_yearly: 'price_1SUwZsJtYXMzJCdNuoGh5VrV', // $79.00/year
+    };
     
     try {
       setIsProcessingCheckout(true);
@@ -63,7 +63,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
       alert('Failed to start checkout. Please try again.');
       setIsProcessingCheckout(false);
     }
-  }, [isProcessingCheckout, priceIds]);
+  }, [isProcessingCheckout]);
 
   const handlePlanClick = (tier: string) => {
     if (user) {

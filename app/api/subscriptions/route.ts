@@ -69,7 +69,7 @@ export async function GET() {
 
     // Fetch subscription from Stripe
     try {
-      const subscription = await stripe.subscriptions.retrieve(
+      const subscription: Stripe.Subscription = await stripe.subscriptions.retrieve(
         profile.stripe_subscription_id,
         {
           expand: ['items.data.price.product'],
