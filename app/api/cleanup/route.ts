@@ -15,17 +15,23 @@ const STORAGE_ALERT_THRESHOLD = 0.9; // Alert at 90% usage
  */
 export async function DELETE(request: Request) {
   try {
-    // Optional: Add authentication/authorization here
-    // For example, check for an API key or admin token
+    // Check if this is a Vercel Cron request
+    // Vercel automatically sends an authorization header for cron jobs
     const authHeader = request.headers.get('authorization');
-    const expectedToken = process.env.CLEANUP_API_TOKEN;
+    const userAgent = request.headers.get('user-agent') || '';
+    const isVercelCron = userAgent.includes('vercel-cron') || 
+                        request.headers.get('x-vercel-signature') !== null;
     
-    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+    // For manual calls (not from Vercel Cron), check CLEANUP_API_TOKEN if set
+    const expectedToken = process.env.CLEANUP_API_TOKEN;
+    if (!isVercelCron && expectedToken && authHeader !== `Bearer ${expectedToken}`) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized. This endpoint requires authentication for manual calls.' },
         { status: 401 }
       );
     }
+    
+    // Vercel Cron requests are automatically authenticated by Vercel, so we allow them
 
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
