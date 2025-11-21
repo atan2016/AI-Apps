@@ -255,37 +255,71 @@ export async function DELETE() {
     const subData = subscriptionResponse as any;
 
     // Helper function to safely convert timestamp to ISO string
-    const toISOString = (timestamp: number | null | undefined): string | null => {
-      if (timestamp === null || timestamp === undefined) {
+    // Handles Unix timestamps (seconds) or Date objects
+    const toISOString = (value: number | string | Date | null | undefined): string | null => {
+      if (value === null || value === undefined) {
         return null;
       }
-      if (typeof timestamp !== 'number' || isNaN(timestamp) || timestamp <= 0) {
-        console.warn('Invalid timestamp:', timestamp);
-        return null;
-      }
+      
       try {
-        const date = new Date(timestamp * 1000);
-        if (isNaN(date.getTime())) {
-          console.warn('Invalid date from timestamp:', timestamp);
+        let date: Date;
+        
+        // If it's already a Date object
+        if (value instanceof Date) {
+          date = value;
+        }
+        // If it's a number (Unix timestamp in seconds)
+        else if (typeof value === 'number') {
+          if (isNaN(value) || value <= 0) {
+            console.warn('Invalid timestamp:', value);
+            return null;
+          }
+          date = new Date(value * 1000);
+        }
+        // If it's a string, try to parse it
+        else if (typeof value === 'string') {
+          date = new Date(value);
+        }
+        else {
+          console.warn('Unexpected type for date conversion:', typeof value, value);
           return null;
         }
+        
+        // Validate the date
+        if (isNaN(date.getTime())) {
+          console.warn('Invalid date:', value);
+          return null;
+        }
+        
         return date.toISOString();
       } catch (error) {
-        console.error('Error converting timestamp to ISO:', error, timestamp);
+        console.error('Error converting to ISO string:', error, value);
         return null;
       }
     };
 
     // Update Supabase to track cancellation status
+    const now = new Date();
+    const nowISO = now.toISOString();
+    
     await supabase
       .from('profiles')
       .update({
         cancel_at_period_end: true,
-        updated_at: new Date().toISOString(),
+        updated_at: nowISO,
       })
       .eq('user_id', userId);
 
-    const periodEndISO = toISOString(subData.current_period_end);
+    // Safely get current_period_end with detailed logging
+    const currentPeriodEnd = subData.current_period_end;
+    console.log('Subscription response data:', {
+      subscriptionId: subData.id,
+      current_period_end: currentPeriodEnd,
+      current_period_end_type: typeof currentPeriodEnd,
+      cancel_at_period_end: subData.cancel_at_period_end,
+    });
+    
+    const periodEndISO = toISOString(currentPeriodEnd);
     const periodEndDisplay = periodEndISO || 'end of billing period';
     
     console.log(`Subscription cancellation initiated for user ${userId}. Subscription ID: ${profile.stripe_subscription_id}, Cancel at period end: ${subData.cancel_at_period_end}, Period ends: ${periodEndDisplay}`);
