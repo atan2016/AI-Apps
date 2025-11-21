@@ -67,10 +67,113 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId);
     }
 
+    // If user has a cancelled subscription that hasn't ended yet, restore it instead of creating new one
+    // Only handle this for subscription mode, not one-time payments
+    if (mode === 'subscription' && profile?.stripe_subscription_id && profile?.cancel_at_period_end) {
+      try {
+        // Check if subscription still exists and is still active (not yet ended)
+        const existingSubscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
+        
+        // If subscription is active but set to cancel, restore it
+        if (existingSubscription.status === 'active' || existingSubscription.status === 'trialing') {
+          // Clear cancellation flag in Stripe
+          await stripe.subscriptions.update(profile.stripe_subscription_id, {
+            cancel_at_period_end: false,
+          });
+
+          // Update profile to clear cancellation flag
+          const isPremier = tier.startsWith('premier_');
+          await supabase
+            .from('profiles')
+            .update({
+              cancel_at_period_end: false,
+              tier: tier as any,
+              credits: 999999,
+              ai_credits: isPremier ? 100 : 0,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId);
+
+          // Return success - subscription has been restored
+          return NextResponse.json({ 
+            success: true,
+            message: 'Subscription restored successfully',
+            restored: true,
+          });
+        }
+      } catch (error) {
+        // If subscription doesn't exist or is already cancelled, continue with new checkout
+        console.log('Existing subscription not found or already ended, creating new checkout session');
+      }
+    }
+
     // Determine mode based on tier (credit_pack is one-time payment, others are subscriptions)
     const mode = tier === 'credit_pack' ? 'payment' : 'subscription';
 
-    // Create checkout session
+    // If user has a cancelled subscription that's still active, restore it instead of creating new checkout
+    if (mode === 'subscription' && profile?.stripe_subscription_id && profile?.cancel_at_period_end) {
+      try {
+        // Check if subscription still exists and is active
+        const existingSubscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
+        
+        // If subscription is still active (not yet ended), restore it
+        if (existingSubscription.status === 'active' || existingSubscription.status === 'trialing') {
+          // Update subscription to clear cancellation and change price if different tier
+          const currentPriceId = existingSubscription.items.data[0]?.price.id;
+          
+          const updateParams: Stripe.SubscriptionUpdateParams = {
+            cancel_at_period_end: false, // Restore subscription
+            metadata: {
+              userId: userId,
+              tier: tier,
+            },
+          };
+
+          // If price is different, update it
+          if (currentPriceId !== priceId) {
+            updateParams.items = [{
+              id: existingSubscription.items.data[0].id,
+              price: priceId,
+            }];
+            updateParams.proration_behavior = 'none'; // Changes take effect at period end
+          }
+
+          const restoredSubscription = await stripe.subscriptions.update(
+            profile.stripe_subscription_id,
+            updateParams
+          );
+
+          // Update profile to clear cancellation flag and update tier
+          const isPremier = tier.startsWith('premier_');
+          await supabase
+            .from('profiles')
+            .update({
+              cancel_at_period_end: false,
+              tier: tier as any,
+              credits: 999999,
+              ai_credits: isPremier ? 100 : 0,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId);
+
+          // Return success - subscription has been restored
+          return NextResponse.json({ 
+            success: true,
+            message: 'Subscription restored successfully',
+            restored: true,
+            subscription: {
+              id: restoredSubscription.id,
+              status: restoredSubscription.status,
+            },
+          });
+        }
+      } catch (error) {
+        // If subscription doesn't exist or has already ended, continue with new checkout
+        console.log('Existing subscription not found or already ended, creating new checkout session:', error);
+      }
+    }
+
+    // Create checkout session for new subscription or one-time payment
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: mode,
