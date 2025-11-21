@@ -75,7 +75,7 @@ export default function SubscriptionsPage() {
   const fetchSubscription = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/subscriptions");
+      const response = await fetch(getApiPath("/api/subscriptions"));
       
       // Check if response is OK
       if (!response.ok) {
@@ -118,31 +118,42 @@ export default function SubscriptionsPage() {
     try {
       setCancelling(true);
       setError(null);
-      const response = await fetch("/api/subscriptions", {
+      const response = await fetch(getApiPath("/api/subscriptions"), {
         method: "DELETE",
       });
 
+      // Get content type before reading body
+      const contentType = response.headers.get("content-type") || "";
+
       if (!response.ok) {
-        let errorMessage = "Failed to cancel subscription";
+        let errorMessage = `Failed to cancel subscription (${response.status} ${response.statusText})`;
         try {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
+          if (contentType.includes("application/json")) {
             const data = await response.json();
             errorMessage = data.error || errorMessage;
           } else {
             const text = await response.text();
             errorMessage = text || errorMessage;
           }
-        } catch {
-          // Use default error message
+        } catch (parseError) {
+          // If we can't parse the error, include status info
+          console.error("Error parsing error response:", parseError);
+          errorMessage = `Failed to cancel subscription: ${response.status} ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
+      // Response is OK - parse it
+      if (!contentType.includes("application/json")) {
         const text = await response.text();
         throw new Error(`Unexpected response format: ${text.substring(0, 100)}`);
+      }
+
+      const data = await response.json();
+      
+      // Verify we got success response
+      if (!data.success) {
+        throw new Error(data.error || data.message || "Failed to cancel subscription");
       }
 
       // Refresh subscription data
@@ -161,7 +172,7 @@ export default function SubscriptionsPage() {
     try {
       setLoadingPortal(true);
       setError(null);
-      const response = await fetch("/api/subscriptions/portal", {
+      const response = await fetch(getApiPath("/api/subscriptions/portal"), {
         method: "POST",
       });
 
@@ -202,7 +213,7 @@ export default function SubscriptionsPage() {
     try {
       setSyncing(true);
       setError(null);
-      const response = await fetch("/api/subscriptions/sync", {
+      const response = await fetch(getApiPath("/api/subscriptions/sync"), {
         method: "POST",
       });
 
@@ -505,7 +516,7 @@ export default function SubscriptionsPage() {
                           try {
                             setSyncing(true);
                             setError(null);
-                            const response = await fetch("/api/subscriptions/manual-update", {
+                            const response = await fetch(getApiPath("/api/subscriptions/manual-update"), {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ tier: "premier_yearly" }),
@@ -537,7 +548,7 @@ export default function SubscriptionsPage() {
                           try {
                             setSyncing(true);
                             setError(null);
-                            const response = await fetch("/api/subscriptions/manual-update", {
+                            const response = await fetch(getApiPath("/api/subscriptions/manual-update"), {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ tier: "premier_weekly" }),
@@ -572,7 +583,7 @@ export default function SubscriptionsPage() {
                         try {
                           setSyncing(true);
                           setError(null);
-                          const response = await fetch("/api/subscriptions/debug");
+                          const response = await fetch(getApiPath("/api/subscriptions/debug"));
                           if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                           }
