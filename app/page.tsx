@@ -908,8 +908,7 @@ export default function Home() {
         {user && profile && (
           <div className="max-w-2xl mx-auto mb-12 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-300 text-center">
-              <strong>⏰ Important:</strong> Images are automatically deleted after 24 hours. 
-              Please download your enhanced images within this timeframe to keep them permanently.
+              <strong>⏰ Important:</strong> For privacy reasons your images will be temporarily stored in the backend database for troubleshooting and will be automatically deleted after 24 hours. Please download your enhanced images within this timeframe to keep them permanently.
             </p>
           </div>
         )}
