@@ -87,7 +87,7 @@ export default function Home() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('/api/profile');
+      const response = await fetch(getApiPath('/api/profile'));
       if (response.ok) {
         const data = await response.json();
         setProfile(data);
@@ -99,7 +99,7 @@ export default function Home() {
 
   const fetchUserImages = async () => {
     try {
-      const response = await fetch('/api/images');
+      const response = await fetch(getApiPath('/api/images'));
       if (response.ok) {
         const data = await response.json();
         setImages(data);
@@ -379,7 +379,7 @@ export default function Home() {
         guestSessionId: !user ? guestSessionId : undefined,
       };
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch(getApiPath("/api/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -387,10 +387,28 @@ export default function Home() {
         body: JSON.stringify(requestPayload),
       });
 
-      const data = await response.json();
+      // Get content type to determine how to parse
+      const contentType = response.headers.get("content-type") || "";
+      let data;
 
+      if (contentType.includes("application/json")) {
+        // Try to parse as JSON
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // If JSON parsing fails, read as text
+          const text = await response.text();
+          throw new Error(`Failed to parse response: ${text || response.statusText}`);
+        }
+      } else {
+        // Not JSON - read as text
+        const text = await response.text();
+        throw new Error(`Unexpected response format: ${text || response.statusText}`);
+      }
+
+      // Check if response indicates an error
       if (!response.ok) {
-        throw new Error(data.error || "Failed to save enhanced image");
+        throw new Error(data.error || `Failed to save enhanced image: ${response.status} ${response.statusText}`);
       }
 
       // Add the new image to the beginning of the list
