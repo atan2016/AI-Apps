@@ -22,6 +22,8 @@ const isPublicRoute = createRouteMatcher([
   `${BASE_PATH}/api/images/download(.*)`,
   '/api/stripe/webhook(.*)',
   `${BASE_PATH}/api/stripe/webhook(.*)`,
+  '/api/cleanup(.*)',
+  `${BASE_PATH}/api/cleanup(.*)`,
   '/sign-in(.*)',
   `${BASE_PATH}/sign-in(.*)`,
   '/sign-up(.*)',

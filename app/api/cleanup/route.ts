@@ -9,9 +9,94 @@ const STORAGE_LIMIT_BYTES = 1073741824;
 const STORAGE_ALERT_THRESHOLD = 0.9; // Alert at 90% usage
 
 /**
+ * Shared cleanup function that deletes images older than 24 hours
+ */
+async function performCleanup() {
+  const twentyFourHoursAgo = new Date();
+  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+  console.log('🧹 Starting cleanup of images older than 24 hours...');
+  console.log('Cutoff time:', twentyFourHoursAgo.toISOString());
+
+  // Find all images older than 24 hours
+  const { data: oldImages, error: fetchError } = await supabase
+    .from('images')
+    .select('*')
+    .lt('created_at', twentyFourHoursAgo.toISOString());
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
+  if (!oldImages || oldImages.length === 0) {
+    console.log('✅ No images to clean up');
+    return {
+      deletedCount: 0,
+      errorCount: 0,
+      errors: [],
+      message: 'No images older than 24 hours found',
+    };
+  }
+
+  console.log(`Found ${oldImages.length} images to delete`);
+
+  let deletedCount = 0;
+  let errorCount = 0;
+  const errors: string[] = [];
+
+  // Delete each image from storage and database
+  for (const image of oldImages) {
+    try {
+      // Delete from Supabase Storage
+      if (image.original_url) {
+        try {
+          await deleteImageFromStorage(image.original_url);
+        } catch (err) {
+          console.warn(`Failed to delete original image ${image.original_url}:`, err);
+        }
+      }
+      
+      if (image.enhanced_url) {
+        try {
+          await deleteImageFromStorage(image.enhanced_url);
+        } catch (err) {
+          console.warn(`Failed to delete enhanced image ${image.enhanced_url}:`, err);
+        }
+      }
+
+      // Delete from database
+      const { error: deleteError } = await supabase
+        .from('images')
+        .delete()
+        .eq('id', image.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      deletedCount++;
+    } catch (error) {
+      errorCount++;
+      const errorMsg = `Failed to delete image ${image.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      errors.push(errorMsg);
+      console.error(errorMsg);
+    }
+  }
+
+  console.log(`✅ Cleanup complete: ${deletedCount} images deleted, ${errorCount} errors`);
+
+  return {
+    deletedCount,
+    errorCount,
+    errors,
+    message: `Deleted ${deletedCount} images older than 24 hours`,
+  };
+}
+
+/**
  * DELETE /api/cleanup
  * Cleanup endpoint to delete images older than 24 hours
- * This should be called by a cron job or scheduled task
+ * This can be called manually or by a cron job
  */
 export async function DELETE(request: Request) {
   try {
@@ -33,84 +118,12 @@ export async function DELETE(request: Request) {
     
     // Vercel Cron requests are automatically authenticated by Vercel, so we allow them
 
-    const twentyFourHoursAgo = new Date();
-    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
-    console.log('🧹 Starting cleanup of images older than 24 hours...');
-    console.log('Cutoff time:', twentyFourHoursAgo.toISOString());
-
-    // Find all images older than 24 hours
-    const { data: oldImages, error: fetchError } = await supabase
-      .from('images')
-      .select('*')
-      .lt('created_at', twentyFourHoursAgo.toISOString());
-
-    if (fetchError) {
-      throw fetchError;
-    }
-
-    if (!oldImages || oldImages.length === 0) {
-      console.log('✅ No images to clean up');
-      return NextResponse.json({
-        success: true,
-        deletedCount: 0,
-        message: 'No images older than 24 hours found',
-      });
-    }
-
-    console.log(`Found ${oldImages.length} images to delete`);
-
-    let deletedCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
-
-    // Delete each image from storage and database
-    for (const image of oldImages) {
-      try {
-        // Delete from Supabase Storage
-        if (image.original_url) {
-          try {
-            await deleteImageFromStorage(image.original_url);
-          } catch (err) {
-            console.warn(`Failed to delete original image ${image.original_url}:`, err);
-          }
-        }
-        
-        if (image.enhanced_url) {
-          try {
-            await deleteImageFromStorage(image.enhanced_url);
-          } catch (err) {
-            console.warn(`Failed to delete enhanced image ${image.enhanced_url}:`, err);
-          }
-        }
-
-        // Delete from database
-        const { error: deleteError } = await supabase
-          .from('images')
-          .delete()
-          .eq('id', image.id);
-
-        if (deleteError) {
-          throw deleteError;
-        }
-
-        deletedCount++;
-      } catch (error) {
-        errorCount++;
-        const errorMsg = `Failed to delete image ${image.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        errors.push(errorMsg);
-        console.error(errorMsg);
-      }
-    }
-
-    console.log(`✅ Cleanup complete: ${deletedCount} images deleted, ${errorCount} errors`);
+    const result = await performCleanup();
 
     return NextResponse.json({
       success: true,
-      deletedCount,
-      errorCount,
-      errors: errors.length > 0 ? errors : undefined,
-      message: `Deleted ${deletedCount} images older than 24 hours`,
+      ...result,
+      errors: result.errors.length > 0 ? result.errors : undefined,
     });
   } catch (error) {
     console.error('Error during cleanup:', error);
@@ -127,9 +140,29 @@ export async function DELETE(request: Request) {
 /**
  * GET /api/cleanup
  * Check storage usage and send alerts if needed
+ * If called from Vercel Cron, also perform cleanup (since Vercel Cron sends GET requests)
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Check if this is a Vercel Cron request
+    // Vercel Cron sends GET requests, so we need to handle cleanup here too
+    const userAgent = request.headers.get('user-agent') || '';
+    const isVercelCron = userAgent.includes('vercel-cron') || 
+                        request.headers.get('x-vercel-signature') !== null;
+    
+    let cleanupResult = null;
+    
+    // If called from Vercel Cron, also run cleanup
+    if (isVercelCron) {
+      console.log('🧹 Vercel Cron detected - running cleanup via GET request...');
+      try {
+        cleanupResult = await performCleanup();
+      } catch (cleanupError) {
+        console.error('Error during cleanup from cron:', cleanupError);
+        // Continue with storage check even if cleanup fails
+      }
+    }
+
     // Get storage usage from Supabase
     // Note: Supabase doesn't provide a direct API for storage usage
     // We'll estimate based on the number of images
@@ -158,6 +191,12 @@ export async function GET() {
       percentage: percentage.toFixed(2),
       imageCount: allImages?.length || 0,
       alertSent: percentage >= STORAGE_ALERT_THRESHOLD * 100,
+      ...(cleanupResult && {
+        cleanupRun: true,
+        deletedCount: cleanupResult.deletedCount,
+        errorCount: cleanupResult.errorCount,
+        cleanupMessage: cleanupResult.message,
+      }),
     });
   } catch (error) {
     console.error('Error checking storage:', error);
