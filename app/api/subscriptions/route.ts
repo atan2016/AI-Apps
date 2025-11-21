@@ -254,6 +254,28 @@ export async function DELETE() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subData = subscriptionResponse as any;
 
+    // Helper function to safely convert timestamp to ISO string
+    const toISOString = (timestamp: number | null | undefined): string | null => {
+      if (timestamp === null || timestamp === undefined) {
+        return null;
+      }
+      if (typeof timestamp !== 'number' || isNaN(timestamp) || timestamp <= 0) {
+        console.warn('Invalid timestamp:', timestamp);
+        return null;
+      }
+      try {
+        const date = new Date(timestamp * 1000);
+        if (isNaN(date.getTime())) {
+          console.warn('Invalid date from timestamp:', timestamp);
+          return null;
+        }
+        return date.toISOString();
+      } catch (error) {
+        console.error('Error converting timestamp to ISO:', error, timestamp);
+        return null;
+      }
+    };
+
     // Update Supabase to track cancellation status
     await supabase
       .from('profiles')
@@ -263,13 +285,16 @@ export async function DELETE() {
       })
       .eq('user_id', userId);
 
-    console.log(`Subscription cancellation initiated for user ${userId}. Subscription ID: ${profile.stripe_subscription_id}, Cancel at period end: ${subData.cancel_at_period_end}, Period ends: ${new Date(subData.current_period_end * 1000).toISOString()}`);
+    const periodEndISO = toISOString(subData.current_period_end);
+    const periodEndDisplay = periodEndISO || 'end of billing period';
+    
+    console.log(`Subscription cancellation initiated for user ${userId}. Subscription ID: ${profile.stripe_subscription_id}, Cancel at period end: ${subData.cancel_at_period_end}, Period ends: ${periodEndDisplay}`);
 
     return NextResponse.json({
       success: true,
       message: 'Subscription will be cancelled at the end of the current billing period',
       cancel_at_period_end: subData.cancel_at_period_end,
-      current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
+      current_period_end: periodEndISO,
     });
   } catch (error) {
     console.error('Error cancelling subscription:', error);
