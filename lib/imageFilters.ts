@@ -83,8 +83,9 @@ export async function applyFilters(
       // Put modified image data back
       ctx.putImageData(imageData, 0, 0);
 
-      // Convert to data URL
-      resolve(canvas.toDataURL('image/png'));
+      // Convert to data URL as JPEG with compression (smaller than PNG)
+      // Use 0.85 quality for good balance between quality and file size
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
 
     img.onerror = () => {

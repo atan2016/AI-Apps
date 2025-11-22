@@ -182,9 +182,10 @@ export default function Home() {
   };
 
   // Compress image for API upload - ensures base64 data URL is under Vercel's 4.5MB payload limit
-  // Base64 encoding increases size by ~33%, so we target 3MB raw file size (≈4MB base64)
+  // When sending both original and enhanced images, we need to be more conservative
+  // Target 2MB for original image (leaving room for enhanced image + other data)
   const compressImageForAPI = async (file: File): Promise<string> => {
-    const MAX_BASE64_SIZE = 3 * 1024 * 1024; // 3MB raw = ~4MB base64 (safe for 4.5MB limit)
+    const MAX_BASE64_SIZE = 2 * 1024 * 1024; // 2MB base64 (safe when combined with enhanced image)
     
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -280,6 +281,80 @@ export default function Home() {
       };
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsDataURL(file);
+    });
+  };
+
+  // Compress a base64 data URL to ensure it's under the size limit
+  const compressDataUrl = async (dataUrl: string, maxBase64Size: number = 1.5 * 1024 * 1024): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Resize if needed - more aggressive for enhanced images
+        const MAX_DIMENSION = 1500;
+        
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          if (width > height) {
+            height = (height / width) * MAX_DIMENSION;
+            width = MAX_DIMENSION;
+          } else {
+            width = (width / height) * MAX_DIMENSION;
+            height = MAX_DIMENSION;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels
+        const tryCompress = (q: number) => {
+          const compressed = canvas.toDataURL('image/jpeg', q);
+          const base64Size = (compressed.length * 3) / 4;
+          
+          if (base64Size > maxBase64Size && q > 0.3) {
+            tryCompress(q - 0.1);
+          } else if (base64Size > maxBase64Size) {
+            // Reduce dimensions further
+            const newMaxDim = Math.max(800, Math.floor(MAX_DIMENSION * 0.7));
+            if (newMaxDim < MAX_DIMENSION && width > newMaxDim && height > newMaxDim) {
+              if (width > height) {
+                height = (height / width) * newMaxDim;
+                width = newMaxDim;
+              } else {
+                width = (width / height) * newMaxDim;
+                height = newMaxDim;
+              }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx2 = canvas.getContext('2d');
+              if (ctx2) {
+                ctx2.drawImage(img, 0, 0, width, height);
+                tryCompress(0.7);
+              } else {
+                reject(new Error('Could not get canvas context'));
+              }
+            } else {
+              reject(new Error('Image too large even after maximum compression'));
+            }
+          } else {
+            resolve(compressed);
+          }
+        };
+        
+        tryCompress(0.8);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = dataUrl;
     });
   };
 
@@ -467,15 +542,28 @@ export default function Home() {
       
       const filterDisplayName = filterNameMap[selectedFilter] || selectedFilter;
       
+      // For client-side filters, apply filter and compress the enhanced image
+      let enhancedUrl: string | undefined;
+      if (!useAI) {
+        const filterOptions = FILTER_PRESETS[selectedFilter as keyof typeof FILTER_PRESETS];
+        const filteredDataUrl = await applyFilters(dataUrl, filterOptions);
+        // Compress the enhanced image to keep total payload under limit
+        // Use 1.5MB limit for enhanced image (leaving room for original + other data)
+        try {
+          enhancedUrl = await compressDataUrl(filteredDataUrl, 1.5 * 1024 * 1024);
+        } catch (compressError) {
+          console.error('Failed to compress enhanced image:', compressError);
+          // Fallback to original filtered image (might still be too large, but better than nothing)
+          enhancedUrl = filteredDataUrl;
+        }
+      }
+
       const requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
         imageUrl: dataUrl,
         useAI: useAI,
         aiModel: useAI ? selectedAIModel : undefined,
         filterName: useAI ? getAIModelDisplayName(selectedAIModel) : filterDisplayName,
-        enhancedUrl: !useAI ? await (async () => {
-          const filterOptions = FILTER_PRESETS[selectedFilter as keyof typeof FILTER_PRESETS];
-          return await applyFilters(dataUrl, filterOptions);
-        })() : undefined,
+        enhancedUrl: enhancedUrl,
       };
 
       // Send to API for saving (and AI enhancement if requested)
