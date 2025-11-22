@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
+import { supabaseAdmin, getAICreditsForTier, type Profile } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
