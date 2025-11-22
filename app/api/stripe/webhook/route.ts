@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
               .update({
                 tier: tier,
                 credits: 999999, // Unlimited for paid tiers
-                ai_credits: getAICreditsForTier(tier),
+                ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
                 stripe_subscription_id: session.subscription as string,
                 updated_at: new Date().toISOString(),
               })
