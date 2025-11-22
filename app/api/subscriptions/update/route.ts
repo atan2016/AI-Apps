@@ -187,10 +187,10 @@ export async function POST(request: NextRequest) {
       );
     } catch (stripeError) {
       console.error('Stripe update error:', stripeError);
-      const error = stripeError as { message?: string };
+      const error = stripeError as { message?: string; type?: string; code?: string };
       const errorMessage = error?.message || 'Unknown Stripe error';
-      const errorType = stripeError?.type || 'unknown';
-      const errorCode = stripeError?.code || 'unknown';
+      const errorType = error?.type || 'unknown';
+      const errorCode = error?.code || 'unknown';
       
       // Provide more helpful error messages for common issues
       let userFriendlyError = errorMessage;
