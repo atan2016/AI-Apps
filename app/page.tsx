@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent, ChangeEvent, useEffect } from "react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmojiCard } from "@/components/EmojiCard";
@@ -39,7 +40,7 @@ export default function Home() {
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guestSessionId, setGuestSessionId] = useState<string | null>(null);
-  const [guestImageCreated, setGuestImageCreated] = useState(false);
+  const [guestImageCount, setGuestImageCount] = useState(0);
   
   // Cropping state
   const [isCropping, setIsCropping] = useState(false);
@@ -60,18 +61,18 @@ export default function Home() {
       if (typeof window !== 'undefined') {
         // Check for existing guest session
         const existingSessionId = localStorage.getItem('guestSessionId');
-        const existingGuestImage = localStorage.getItem('guestImageCreated') === 'true';
+        const existingGuestImageCount = localStorage.getItem('guestImageCount');
         
         if (existingSessionId) {
           setGuestSessionId(existingSessionId);
-          setGuestImageCreated(existingGuestImage);
+          setGuestImageCount(existingGuestImageCount ? parseInt(existingGuestImageCount, 10) : 0);
         } else {
           // Create new guest session
           const newSessionId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
           localStorage.setItem('guestSessionId', newSessionId);
-          localStorage.setItem('guestImageCreated', 'false');
+          localStorage.setItem('guestImageCount', '0');
           setGuestSessionId(newSessionId);
-          setGuestImageCreated(false);
+          setGuestImageCount(0);
         }
       }
     }
@@ -503,11 +504,12 @@ export default function Home() {
       return;
     }
 
-    // Check if guest has already used their free image
+    // Check if guest has already used all their free images
     // Skip this check if test guest mode is enabled
     const ENABLE_TEST_GUEST = process.env.NEXT_PUBLIC_ENABLE_TEST_GUEST === 'true';
-    if (!user && guestImageCreated && !ENABLE_TEST_GUEST) {
-      setError('You\'ve already used your free image. Please sign up to create more images.');
+    const MAX_GUEST_IMAGES = 20;
+    if (!user && guestImageCount >= MAX_GUEST_IMAGES && !ENABLE_TEST_GUEST) {
+      setError(`You've used all ${MAX_GUEST_IMAGES} free images. Please sign up to create more images.`);
       return;
     }
 
@@ -617,10 +619,11 @@ export default function Home() {
 
       setImages((prev) => [newImage, ...prev]);
       
-      // If guest user, mark that they've used their free image
+      // If guest user, increment their image count
       if (data.isGuest && typeof window !== 'undefined') {
-        localStorage.setItem('guestImageCreated', 'true');
-        setGuestImageCreated(true);
+        const newCount = guestImageCount + 1;
+        localStorage.setItem('guestImageCount', newCount.toString());
+        setGuestImageCount(newCount);
       }
       
       // Refresh profile to update credits
@@ -757,11 +760,14 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-green-600 dark:text-green-400" />
                   <span className="font-medium text-green-800 dark:text-green-300">
-                    {guestImageCreated 
-                      ? 'You\'ve used your free image. Sign up to create more!'
+                    {guestImageCount >= 20 
+                      ? `You've used all 20 free images. Sign up to create more!`
                       : (
                           <span className="font-bold">
-                            Create 1 image for FREE - No sign-up required!
+                            Create {20 - guestImageCount} images for FREE - No sign-up required!{' '}
+                            <Link href="/info" className="underline hover:text-green-900 dark:hover:text-green-200 font-normal">
+                              Click here to see what AI can do to restore your photos
+                            </Link>
                           </span>
                         )}
                   </span>
@@ -790,10 +796,12 @@ export default function Home() {
                   <CreditCard className="h-4 w-4" />
                   <span className="font-medium">
                     {profile.tier === 'free' 
-                      ? (profile.credits === 1 
+                      ? (profile.credits >= 1 && profile.credits <= 20
                           ? (
                               <span className="font-bold animate-flash animate-rainbow">
-                                You get 1 credit to try for FREE
+                                {profile.credits === 20 
+                                  ? 'You get 20 credits to try for FREE'
+                                  : `${profile.credits} credits remaining (20 free to start)`}
                               </span>
                             )
                           : profile.credits === 0
@@ -853,255 +861,11 @@ export default function Home() {
           )}
         </div>
 
-        {/* Subscription Plans for Guest Users */}
-        {isLoaded && !user && (
-          <div className="max-w-5xl mx-auto mb-12">
-            <h2 className="text-2xl font-bold text-center mb-6">
-              Choose Your Plan
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Basic Plans */}
-              <div className="border rounded-lg p-6 bg-card">
-                <div className="text-center mb-4">
-                  <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
-                  <p className="text-sm text-muted-foreground">Unlimited client-side filters</p>
-                </div>
-                
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    5 filter presets
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Before/after comparison
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Download high-res images
-                  </li>
-                </ul>
-                
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Weekly - $2.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Monthly - $5.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Yearly - $14.99
-                  </Button>
-                </div>
-              </div>
-
-              {/* Premier Plans */}
-              <div id="premier-plan" className="border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
-                  BEST VALUE
-                </div>
-                
-                <div className="text-center mb-4 mt-2">
-                  <h3 className="text-xl font-bold mb-2">Premier Plan ⭐</h3>
-                  <p className="text-sm text-muted-foreground">AI-powered enhancement + filters</p>
-                </div>
-                
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    <strong>100 AI-enhanced images/cycle</strong>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    GFPGAN face enhancement
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Buy more AI credits: $5/50 images
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Priority support
-                  </li>
-                </ul>
-                
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Weekly - $6.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Monthly - $14.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Yearly - $79 ⭐
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Subscription Plans for Logged-in Users */}
-        {user && profile && !isPremierTier(profile.tier) && (
-          <div id="subscription-plans" className="max-w-5xl mx-auto mb-12">
-            <h2 className="text-2xl font-bold text-center mb-6">
-              {profile.tier === 'free' ? 'Choose Your Plan' : profile.tier === 'weekly' || profile.tier === 'monthly' || profile.tier === 'yearly' ? 'Change Your Plan' : 'Upgrade to Premier'}
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Basic Plans - Show to free users and Basic plan users (weekly/monthly/yearly) */}
-              {(profile.tier === 'free' || profile.tier === 'weekly' || profile.tier === 'monthly' || profile.tier === 'yearly') && (
-                <div className="border rounded-lg p-6 bg-card">
-                <div className="text-center mb-4">
-                  <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
-                  <p className="text-sm text-muted-foreground">Unlimited client-side filters</p>
-                  {(profile.tier === 'weekly' || profile.tier === 'monthly' || profile.tier === 'yearly') && (
-                    <p className="text-xs text-muted-foreground mt-1">Your current plan</p>
-                  )}
-                </div>
-                
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    5 filter presets
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Before/after comparison
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Download high-res images
-                  </li>
-                </ul>
-                
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => handleUpgrade('weekly')}
-                    variant={profile.tier === 'weekly' ? "default" : "outline"}
-                    className="w-full"
-                    disabled={profile.tier === 'weekly'}
-                  >
-                    {profile.tier === 'weekly' ? '✓ Weekly - $2.99 (Current)' : 'Weekly - $2.99'}
-                  </Button>
-                  <Button
-                    onClick={() => handleUpgrade('monthly')}
-                    variant={profile.tier === 'monthly' ? "default" : "outline"}
-                    className="w-full"
-                    disabled={profile.tier === 'monthly'}
-                  >
-                    {profile.tier === 'monthly' ? '✓ Monthly - $5.99 (Current)' : 'Monthly - $5.99'}
-                  </Button>
-                  <Button
-                    onClick={() => handleUpgrade('yearly')}
-                    variant={profile.tier === 'yearly' ? "default" : "outline"}
-                    className="w-full"
-                    disabled={profile.tier === 'yearly'}
-                  >
-                    {profile.tier === 'yearly' ? '✓ Yearly - $14.99 (Current)' : 'Yearly - $14.99'}
-                  </Button>
-                </div>
-              </div>
-              )}
-
-              {/* Premier Plans - Show to all non-premier users */}
-              <div id="premier-plan" className={`border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative ${profile.tier !== 'free' ? 'md:col-span-2' : ''}`}>
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
-                  BEST VALUE
-                </div>
-                
-                <div className="text-center mb-4 mt-2">
-                  <h3 className="text-xl font-bold mb-2">Premier Plan ⭐</h3>
-                  <p className="text-sm text-muted-foreground">AI-powered enhancement + filters</p>
-                </div>
-                
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    <strong>100 AI-enhanced images/cycle</strong>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    GFPGAN face enhancement
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Buy more AI credits: $5/50 images
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Priority support
-                  </li>
-                </ul>
-                
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => handleUpgrade('premier_weekly')}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Weekly - $6.99
-                  </Button>
-                  <Button
-                    onClick={() => handleUpgrade('premier_monthly')}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Monthly - $14.99
-                  </Button>
-                  <Button
-                    onClick={() => handleUpgrade('premier_yearly')}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Yearly - $79 ⭐
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 24-hour notice - Only show to logged-in users */}
         {user && profile && (
           <div className="max-w-2xl mx-auto mb-12 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-300 text-center">
-              <strong>⏰ Important:</strong> For privacy reasons your images will be temporarily stored in the backend database for troubleshooting and will be automatically deleted after 24 hours. Please download your enhanced images within this timeframe to keep them permanently.
+              <strong>⏰ Important:</strong> For privacy reasons your images will be temporarily stored in the backend database for troubleshooting purposes only and will be automatically deleted after 24 hours. Please download your enhanced images within this timeframe to keep them permanently.
             </p>
           </div>
         )}
@@ -1199,7 +963,7 @@ export default function Home() {
             </div>
 
             {/* AI Enhancement Toggle (Premier Users or Guest Users) */}
-            {selectedFile && (isPremierUser || (!user && !guestImageCreated)) && (
+            {selectedFile && (isPremierUser || (!user && guestImageCount < 20)) && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Enhancement Type:</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -1223,7 +987,12 @@ export default function Home() {
                 </div>
                 {useAI && (
                   <div className="space-y-2 mt-2">
-                    <label className="text-sm font-medium">AI Model:</label>
+                    <label className="text-base font-medium">
+                      AI Model:{' '}
+                      <Link href="/info#ai-models" className="text-primary hover:underline text-base font-normal">
+                        Click <span className="font-bold animate-flash animate-rainbow">here</span> to understand these AI Models
+                      </Link>
+                    </label>
                     <select
                       value={selectedAIModel}
                       onChange={(e) => setSelectedAIModel(e.target.value as AIModel)}
@@ -1249,11 +1018,6 @@ export default function Home() {
                         <option value="rembg">Background Removal - Remove Backgrounds</option>
                       </optgroup>
                     </select>
-                    <p className="text-xs text-center text-purple-600 dark:text-purple-400">
-                      {!user 
-                        ? `Using ${getAIModelDisplayName(selectedAIModel)} - Free for guest users!`
-                        : `Using ${getAIModelDisplayName(selectedAIModel)} - ${profile?.ai_credits} AI credits remaining`}
-                    </p>
                   </div>
                 )}
               </div>
@@ -1283,15 +1047,15 @@ export default function Home() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   {!user 
-                    ? (guestImageCreated 
+                    ? (guestImageCount >= 20 
                         ? "You can still preview for free without the AI, sign up/sign in to explore more"
-                        : "Choose Filter Style - Create one image for FREE (no sign-up required):"
+                        : `Choose Filter Style - Create ${20 - guestImageCount} images for FREE (no sign-up required):`
                       )
                     : (profile && profile.credits === 0
                         ? "You can still preview for free without the AI, sign up/sign in to explore more"
                         : (
                             <>
-                              Choose Filter Style (Free Preview without AI, sign in to use AI to create one image for{' '}
+                              Choose Filter Style (Free Preview without AI, sign in to use AI to create {profile?.credits || 20} images for{' '}
                               <span className="font-bold animate-flash animate-rainbow">FREE</span>):
                             </>
                           )
@@ -1321,19 +1085,6 @@ export default function Home() {
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
                   Click any filter to preview - no credits used until you click &quot;Enhance Image&quot;
-                </p>
-              </div>
-            )}
-
-            {/* AI Enhancement Info (when AI is selected) */}
-            {selectedFile && useAI && (
-              <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
-                <p className="text-sm text-center">
-                  <strong>GFPGAN AI Enhancement</strong>
-                  <br />
-                  <span className="text-xs text-muted-foreground">
-                    Professional face restoration and enhancement powered by AI
-                  </span>
                 </p>
               </div>
             )}
@@ -1382,6 +1133,124 @@ export default function Home() {
         {isGenerating && images.length === 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             <LoadingSkeleton />
+          </div>
+        )}
+
+        {/* Subscription Plans for Guest Users - Only show when they've used all 20 free images */}
+        {isLoaded && !user && guestImageCount >= 20 && (
+          <div className="max-w-5xl mx-auto mb-12 mt-16">
+            <h2 className="text-2xl font-bold text-center mb-6">
+              Choose Your Plan
+            </h2>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Basic Plans */}
+              <div className="border rounded-lg p-6 bg-card">
+                <div className="text-center mb-4">
+                  <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
+                  <p className="text-sm text-muted-foreground">Unlimited client-side filters</p>
+                </div>
+                
+                <ul className="space-y-2 mb-6 text-sm">
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-500">✓</span>
+                    Unlimited filter enhancements
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-500">✓</span>
+                    5 filter presets
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-500">✓</span>
+                    Before/after comparison
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-500">✓</span>
+                    Download high-res images
+                  </li>
+                </ul>
+                
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Weekly - $2.99
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Monthly - $5.99
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Yearly - $14.99
+                  </Button>
+                </div>
+              </div>
+
+              {/* Premier Plans */}
+              <div id="premier-plan" className="border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
+                  BEST VALUE
+                </div>
+                
+                <div className="text-center mb-4 mt-2">
+                  <h3 className="text-xl font-bold mb-2">Premier Plan ⭐</h3>
+                  <p className="text-sm text-muted-foreground">AI-powered enhancement + filters</p>
+                </div>
+                
+                <ul className="space-y-2 mb-6 text-sm">
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-500">✓</span>
+                    <strong>100-800 AI-enhanced images/cycle</strong> <span className="text-xs text-muted-foreground">(Weekly: 100, Monthly: 200, Yearly: 800)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-500">✓</span>
+                    GFPGAN face enhancement
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-500">✓</span>
+                    Unlimited filter enhancements
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-500">✓</span>
+                    Buy more AI credits: $5/50 images
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-purple-500">✓</span>
+                    Priority support
+                  </li>
+                </ul>
+                
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    Weekly - $6.99 <span className="text-xs ml-1">(100 AI credits)</span>
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    Monthly - $14.99 <span className="text-xs ml-1">(200 AI credits)</span>
+                  </Button>
+                  <Button
+                    onClick={() => window.location.href = '/sign-up'}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    Yearly - $79 ⭐ <span className="text-xs ml-1">(800 AI credits)</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

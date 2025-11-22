@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Heart, Download, Eye, ZoomIn } from "lucide-react";
+import { Bookmark, Download, Eye, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageLightbox } from "@/components/ImageLightbox";
-import { PlansModal } from "@/components/PlansModal";
-import { useUser } from "@clerk/nextjs";
+import { useUser, SignInButton } from "@clerk/nextjs";
 
 interface EmojiCardProps {
   id: string;
@@ -34,8 +33,6 @@ export function EmojiCard({
   const [showComparison, setShowComparison] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
-  const [showPlansModal, setShowPlansModal] = useState(false);
-  const [plansModalAction, setPlansModalAction] = useState<'download' | 'zoom'>('download');
   
   // Calculate hours until deletion (24 hours from creation)
   const getHoursUntilDeletion = (): number | null => {
@@ -50,27 +47,14 @@ export function EmojiCard({
   const hoursRemaining = getHoursUntilDeletion();
   const isExpiringSoon = hoursRemaining !== null && hoursRemaining <= 6 && hoursRemaining > 0;
 
-  const checkAuthAndPrompt = (action: 'download' | 'zoom'): boolean => {
-    // Check if user is logged in
-    if (isLoaded && !user) {
-      // Show plans modal instead of simple confirm
-      setPlansModalAction(action);
-      setShowPlansModal(true);
-      return false; // Block the action
-    }
-    return true; // Allow the action
-  };
 
   const handleZoom = () => {
-    if (checkAuthAndPrompt('zoom')) {
-      setShowLightbox(true);
-    }
+    // Allow zoom for all users, including guests
+    setShowLightbox(true);
   };
 
   const handleDownload = async () => {
-    if (!checkAuthAndPrompt('download')) {
-      return;
-    }
+    // Allow download for all users, including guests
 
     try {
       // Use proxy endpoint for downloads to handle CORS and authentication issues
@@ -224,20 +208,21 @@ export function EmojiCard({
               <Eye className="h-4 w-4" />
             </Button>
           )}
-          <Button
-            size="icon"
-            variant="secondary"
-            className="bg-white/90 hover:bg-white text-black"
-            onClick={(e) => {
-              e.stopPropagation();
-              onLike(id);
-            }}
-            title="Like"
-          >
-            <Heart
-              className={`h-4 w-4 ${isLiked ? "fill-red-500 text-red-500" : ""}`}
-            />
-          </Button>
+          {isLoaded && !user && (
+            <SignInButton mode="modal">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="bg-white/90 hover:bg-white text-black"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                title="Sign in to save"
+              >
+                <Bookmark className="h-4 w-4" />
+              </Button>
+            </SignInButton>
+          )}
         </div>
       </div>
 
@@ -245,10 +230,6 @@ export function EmojiCard({
       <div className="p-3 flex flex-col gap-2 border-t bg-background">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm truncate flex-1">{prompt}</p>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-red-500 text-red-500" : ""}`} />
-            <span>{likes}</span>
-          </div>
         </div>
         {hoursRemaining !== null && hoursRemaining > 0 && (
           <div className={`text-xs px-2 py-1 rounded ${
@@ -277,12 +258,6 @@ export function EmojiCard({
         onClose={() => setShowLightbox(false)}
       />
 
-      {/* Plans Modal */}
-      <PlansModal
-        isOpen={showPlansModal}
-        onClose={() => setShowPlansModal(false)}
-        action={plansModalAction}
-      />
     </div>
   );
 }

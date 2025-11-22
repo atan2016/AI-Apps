@@ -39,7 +39,7 @@ export async function GET() {
         .insert({
           user_id: userId,
           tier: 'free',
-          credits: 1,
+          credits: 20,
         })
         .select()
         .single();

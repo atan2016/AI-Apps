@@ -84,24 +84,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Guest users: Only allow one free image (with or without AI)
+    // Guest users: Allow 20 free images (with or without AI)
     if (isGuest) {
       // Check if test guest mode is enabled (bypasses restrictions for testing)
       // Check both NEXT_PUBLIC_ (client-side) and regular (server-side) env vars
       const ENABLE_TEST_GUEST = process.env.NEXT_PUBLIC_ENABLE_TEST_GUEST === 'true' || process.env.ENABLE_TEST_GUEST === 'true';
+      const MAX_GUEST_IMAGES = 20;
       
       if (!ENABLE_TEST_GUEST) {
-        // Normal guest restrictions - only allow one free image
-        // First, check if this specific guest session already has an image
+        // Normal guest restrictions - allow up to 20 free images
+        // Check how many images this specific guest session has created
         const { data: existingImages, error: checkError } = await supabase
           .from('images')
           .select('id')
-          .eq('user_id', userId)
-          .limit(1);
+          .eq('user_id', userId);
         
-        if (!checkError && existingImages && existingImages.length > 0) {
+        if (!checkError && existingImages && existingImages.length >= MAX_GUEST_IMAGES) {
           return NextResponse.json(
-            { error: "You've already used your free image. Please sign up to create more images." },
+            { error: `You've used all ${MAX_GUEST_IMAGES} free images. Please sign up to create more images.` },
             { status: 402 }
           );
         }
@@ -124,12 +124,12 @@ export async function POST(request: NextRequest) {
           if (recentGuestImages) {
             // Count unique guest sessions from the last 24 hours
             // Since we can't track IP directly, we use a global threshold
-            // Each guest session is already limited to 1 image, so this is just for extreme abuse prevention
+            // Each guest session is limited to 20 images, so this is just for extreme abuse prevention
             const uniqueGuestSessions = new Set(recentGuestImages.map(img => img.user_id));
             
             // Only block if there are 100+ unique guest sessions in the last 24 hours globally
             // This is a very high threshold to prevent extreme abuse while allowing legitimate users
-            // Each legitimate user can only create 1 image per session anyway
+            // Each legitimate user can create up to 20 images per session
             if (uniqueGuestSessions.size >= 100) {
               console.log(`Abuse prevention: Too many guest images created globally (${uniqueGuestSessions.size} in 24h)`);
               return NextResponse.json(
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
         // If profile doesn't exist, create it
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .insert({ user_id: userId, tier: 'free', credits: 1, ai_credits: 0 })
+          .insert({ user_id: userId, tier: 'free', credits: 20, ai_credits: 0 })
           .select()
           .single();
         

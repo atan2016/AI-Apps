@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (!profile) {
       const { data: newProfile } = await supabase
         .from('profiles')
-        .insert({ user_id: userId, tier: 'free', credits: 1 })
+        .insert({ user_id: userId, tier: 'free', credits: 20 })
         .select()
         .single();
       profile = newProfile;

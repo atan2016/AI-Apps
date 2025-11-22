@@ -624,10 +624,7 @@ export default function SubscriptionsPage() {
                 ) : subscriptionData.subscription && subscriptionData.plan ? (
                   <div className="space-y-4">
                     <div>
-                      <p className="text-2xl font-bold">{subscriptionData.plan.productName}</p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {getTierDisplayName(subscriptionData.tier)} Plan
-                      </p>
+                      <p className="text-2xl font-bold">{getTierDisplayName(subscriptionData.tier)} Plan</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
@@ -724,78 +721,6 @@ export default function SubscriptionsPage() {
                       )}
                     </div>
 
-                    {/* Upgrade Options for Weekly/Monthly Plans */}
-                    {subscriptionData.subscription.status === "active" && 
-                     !subscriptionData.subscription.cancel_at_period_end && (
-                      <div className="pt-4 border-t">
-                        {subscriptionData.tier === 'weekly' && (
-                          <div className="space-y-3">
-                            <p className="text-sm font-medium">Upgrade to save more:</p>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleUpgrade('monthly')}
-                              >
-                                Upgrade to Monthly - $5.99
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleUpgrade('yearly')}
-                              >
-                                Upgrade to Yearly - $14.99
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                        {subscriptionData.tier === 'premier_weekly' && (
-                          <div className="space-y-3">
-                            <p className="text-sm font-medium">Upgrade to save more:</p>
-                            <div className="flex gap-2 flex-wrap">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleUpgrade('premier_monthly')}
-                              >
-                                Upgrade to Premier Monthly - $14.99
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleUpgrade('premier_yearly')}
-                              >
-                                Upgrade to Premier Yearly - $79
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                        {subscriptionData.tier === 'monthly' && (
-                          <div className="space-y-3">
-                            <p className="text-sm font-medium">Upgrade to save more:</p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpgrade('yearly')}
-                            >
-                              Upgrade to Yearly - $14.99
-                            </Button>
-                          </div>
-                        )}
-                        {subscriptionData.tier === 'premier_monthly' && (
-                          <div className="space-y-3">
-                            <p className="text-sm font-medium">Upgrade to save more:</p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpgrade('premier_yearly')}
-                            >
-                              Upgrade to Premier Yearly - $79
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
 
                     {subscriptionData.subscription.cancel_at_period_end && (
                       <div className="p-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
@@ -827,115 +752,6 @@ export default function SubscriptionsPage() {
                         <p className="text-sm text-yellow-800 dark:text-yellow-300">
                           {subscriptionData.error}
                         </p>
-                      </div>
-                    )}
-                    
-                    {/* Upgrade Options - Show even when subscription data isn't fully loaded */}
-                    {subscriptionData.tier === 'weekly' && (
-                      <div className="pt-4 border-t space-y-3">
-                        <p className="text-sm font-medium">Upgrade to save more:</p>
-                        <div className="flex gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                const priceIds: { [key: string]: string } = {
-                                  monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K',
-                                  yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ',
-                                };
-                                const response = await fetch(getApiPath('/api/stripe/checkout'), {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    priceId: priceIds.monthly,
-                                    tier: 'monthly',
-                                  }),
-                                });
-                                if (!response.ok) throw new Error('Failed to create checkout session');
-                                const data = await response.json();
-                                if (data.url) window.location.href = data.url;
-                              } catch (error) {
-                                console.error('Error upgrading:', error);
-                                setError(error instanceof Error ? error.message : 'Failed to upgrade');
-                              }
-                            }}
-                          >
-                            Upgrade to Monthly - $5.99
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                const priceIds: { [key: string]: string } = {
-                                  yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ',
-                                };
-                                const response = await fetch(getApiPath('/api/stripe/checkout'), {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    priceId: priceIds.yearly,
-                                    tier: 'yearly',
-                                  }),
-                                });
-                                if (!response.ok) throw new Error('Failed to create checkout session');
-                                const data = await response.json();
-                                if (data.url) window.location.href = data.url;
-                              } catch (error) {
-                                console.error('Error upgrading:', error);
-                                setError(error instanceof Error ? error.message : 'Failed to upgrade');
-                              }
-                            }}
-                          >
-                            Upgrade to Yearly - $14.99
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {subscriptionData.tier === 'premier_weekly' && (
-                      <div className="pt-4 border-t space-y-3">
-                        <p className="text-sm font-medium">Upgrade to save more:</p>
-                        <div className="flex gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUpgrade('premier_monthly')}
-                          >
-                            Upgrade to Premier Monthly - $14.99
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUpgrade('premier_yearly')}
-                          >
-                            Upgrade to Premier Yearly - $79
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {subscriptionData.tier === 'monthly' && (
-                      <div className="pt-4 border-t space-y-3">
-                        <p className="text-sm font-medium">Upgrade to save more:</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpgrade('yearly')}
-                        >
-                          Upgrade to Yearly - $14.99
-                        </Button>
-                      </div>
-                    )}
-                    {subscriptionData.tier === 'premier_monthly' && (
-                      <div className="pt-4 border-t space-y-3">
-                        <p className="text-sm font-medium">Upgrade to save more:</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpgrade('premier_yearly')}
-                        >
-                          Upgrade to Premier Yearly - $79
-                        </Button>
                       </div>
                     )}
                     
@@ -1003,125 +819,128 @@ export default function SubscriptionsPage() {
                     const isPremierPlan = currentTier.startsWith('premier_');
 
                     return (
-                      <div className="space-y-6">
-                        {/* Basic Plans - Show if user has Basic plan */}
-                        {isBasicPlan && (
-                          <div>
-                            <h3 className="text-lg font-semibold mb-3">Basic Plans</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <Button
-                                onClick={() => handleUpgrade('weekly')}
-                                variant={currentTier === 'weekly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'weekly'}
-                              >
-                                {currentTier === 'weekly' ? '✓ Weekly - $2.99 (Current)' : 'Weekly - $2.99'}
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('monthly')}
-                                variant={currentTier === 'monthly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'monthly'}
-                              >
-                                {currentTier === 'monthly' ? '✓ Monthly - $5.99 (Current)' : 'Monthly - $5.99'}
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('yearly')}
-                                variant={currentTier === 'yearly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'yearly'}
-                              >
-                                {currentTier === 'yearly' ? '✓ Yearly - $14.99 (Current)' : 'Yearly - $14.99'}
-                              </Button>
-                            </div>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* Basic Plan Card - Always show */}
+                        <div className="border rounded-lg p-6 bg-card">
+                          <div className="text-center mb-4">
+                            <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
+                            <p className="text-sm text-muted-foreground">Unlimited client-side filters</p>
+                            {isBasicPlan && (
+                              <p className="text-xs text-muted-foreground mt-1">Your current plan</p>
+                            )}
                           </div>
-                        )}
+                          
+                          <ul className="space-y-2 mb-6 text-sm">
+                            <li className="flex items-center gap-2">
+                              <span className="text-green-500">✓</span>
+                              Unlimited filter enhancements
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-green-500">✓</span>
+                              5 filter presets
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-green-500">✓</span>
+                              Before/after comparison
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-green-500">✓</span>
+                              Download high-res images
+                            </li>
+                          </ul>
+                          
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => handleUpgrade('weekly')}
+                              variant={currentTier === 'weekly' ? "default" : "outline"}
+                              className="w-full"
+                              disabled={currentTier === 'weekly'}
+                            >
+                              {currentTier === 'weekly' ? '✓ Weekly - $2.99 (Current)' : 'Weekly - $2.99'}
+                            </Button>
+                            <Button
+                              onClick={() => handleUpgrade('monthly')}
+                              variant={currentTier === 'monthly' ? "default" : "outline"}
+                              className="w-full"
+                              disabled={currentTier === 'monthly'}
+                            >
+                              {currentTier === 'monthly' ? '✓ Monthly - $5.99 (Current)' : 'Monthly - $5.99'}
+                            </Button>
+                            <Button
+                              onClick={() => handleUpgrade('yearly')}
+                              variant={currentTier === 'yearly' ? "default" : "outline"}
+                              className="w-full"
+                              disabled={currentTier === 'yearly'}
+                            >
+                              {currentTier === 'yearly' ? '✓ Yearly - $14.99 (Current)' : 'Yearly - $14.99'}
+                            </Button>
+                          </div>
+                        </div>
 
-                        {/* Premier Plans - Show to all non-premier users */}
-                        {!isPremierPlan && (
-                          <div>
-                            <h3 className="text-lg font-semibold mb-3">Premier Plans ⭐</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <Button
-                                onClick={() => handleUpgrade('premier_weekly')}
-                                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                              >
-                                Weekly - $6.99
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('premier_monthly')}
-                                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                              >
-                                Monthly - $14.99
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('premier_yearly')}
-                                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                              >
-                                Yearly - $79 ⭐
-                              </Button>
-                            </div>
+                        {/* Premier Plan Card - Always show */}
+                        <div className="border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative">
+                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
+                            BEST VALUE
                           </div>
-                        )}
-
-                        {/* Premier Plans - Show if user has Premier plan (to change between premier tiers) */}
-                        {isPremierPlan && (
-                          <div>
-                            <h3 className="text-lg font-semibold mb-3">Premier Plans (Current)</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              <Button
-                                onClick={() => handleUpgrade('premier_weekly')}
-                                variant={currentTier === 'premier_weekly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'premier_weekly'}
-                              >
-                                {currentTier === 'premier_weekly' ? '✓ Weekly - $6.99 (Current)' : 'Weekly - $6.99'}
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('premier_monthly')}
-                                variant={currentTier === 'premier_monthly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'premier_monthly'}
-                              >
-                                {currentTier === 'premier_monthly' ? '✓ Monthly - $14.99 (Current)' : 'Monthly - $14.99'}
-                              </Button>
-                              <Button
-                                onClick={() => handleUpgrade('premier_yearly')}
-                                variant={currentTier === 'premier_yearly' ? 'default' : 'outline'}
-                                className="w-full"
-                                disabled={currentTier === 'premier_yearly'}
-                              >
-                                {currentTier === 'premier_yearly' ? '✓ Yearly - $79 (Current)' : 'Yearly - $79 ⭐'}
-                              </Button>
-                            </div>
-                            <div className="mt-4 pt-4 border-t">
-                              <h3 className="text-lg font-semibold mb-3">Basic Plans (Downgrade)</h3>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <Button
-                                  onClick={() => handleUpgrade('weekly')}
-                                  variant="outline"
-                                  className="w-full"
-                                >
-                                  Weekly - $2.99
-                                </Button>
-                                <Button
-                                  onClick={() => handleUpgrade('monthly')}
-                                  variant="outline"
-                                  className="w-full"
-                                >
-                                  Monthly - $5.99
-                                </Button>
-                                <Button
-                                  onClick={() => handleUpgrade('yearly')}
-                                  variant="outline"
-                                  className="w-full"
-                                >
-                                  Yearly - $14.99
-                                </Button>
-                              </div>
-                            </div>
+                          
+                          <div className="text-center mb-4 mt-2">
+                            <h3 className="text-xl font-bold mb-2">Premier Plan ⭐</h3>
+                            <p className="text-sm text-muted-foreground">AI-powered enhancement + filters</p>
+                            {isPremierPlan && (
+                              <p className="text-xs text-muted-foreground mt-1">Your current plan</p>
+                            )}
                           </div>
-                        )}
+                          
+                          <ul className="space-y-2 mb-6 text-sm">
+                            <li className="flex items-center gap-2">
+                              <span className="text-purple-500">✓</span>
+                              <strong>100-800 AI-enhanced images/cycle</strong> <span className="text-xs text-muted-foreground">(Weekly: 100, Monthly: 200, Yearly: 800)</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-purple-500">✓</span>
+                              GFPGAN face enhancement
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-purple-500">✓</span>
+                              Unlimited filter enhancements
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-purple-500">✓</span>
+                              Buy more AI credits: $5/50 images
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span className="text-purple-500">✓</span>
+                              Priority support
+                            </li>
+                          </ul>
+                          
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => handleUpgrade('premier_weekly')}
+                              variant={currentTier === 'premier_weekly' ? "default" : undefined}
+                              className={`w-full ${currentTier !== 'premier_weekly' ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700' : ''}`}
+                              disabled={currentTier === 'premier_weekly'}
+                            >
+                              {currentTier === 'premier_weekly' ? '✓ Weekly - $6.99 (Current)' : 'Weekly - $6.99 (100 AI credits)'}
+                            </Button>
+                            <Button
+                              onClick={() => handleUpgrade('premier_monthly')}
+                              variant={currentTier === 'premier_monthly' ? "default" : undefined}
+                              className={`w-full ${currentTier !== 'premier_monthly' ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700' : ''}`}
+                              disabled={currentTier === 'premier_monthly'}
+                            >
+                              {currentTier === 'premier_monthly' ? '✓ Monthly - $14.99 (Current)' : 'Monthly - $14.99 (200 AI credits)'}
+                            </Button>
+                            <Button
+                              onClick={() => handleUpgrade('premier_yearly')}
+                              variant={currentTier === 'premier_yearly' ? "default" : undefined}
+                              className={`w-full ${currentTier !== 'premier_yearly' ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700' : ''}`}
+                              disabled={currentTier === 'premier_yearly'}
+                            >
+                              {currentTier === 'premier_yearly' ? '✓ Yearly - $79 (Current)' : 'Yearly - $79 ⭐ (800 AI credits)'}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })()}
@@ -1264,7 +1083,7 @@ export default function SubscriptionsPage() {
                   ) : (
                     <>
                       <ExternalLink className="h-4 w-4 mr-2" />
-                      Open Customer Portal
+                      Open Stripe Portal
                     </>
                   )}
                 </Button>

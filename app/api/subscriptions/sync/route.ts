@@ -134,6 +134,10 @@ export async function POST() {
         const isPremier = tier.startsWith('premier_');
         console.log(`Determined tier: ${tier}, isPremier: ${isPremier}`);
 
+        // Get cancellation status from Stripe subscription
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cancelAtPeriodEnd = (activeSubscription as any).cancel_at_period_end || false;
+        
         // Update profile
         const { error: updateError } = await supabase
           .from('profiles')
@@ -142,6 +146,7 @@ export async function POST() {
             credits: 999999,
             ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
             stripe_subscription_id: activeSubscription.id,
+            cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status from Stripe
             updated_at: new Date().toISOString(),
           })
           .eq('user_id', userId);
@@ -248,6 +253,10 @@ export async function POST() {
 
               if (tier) {
                 const isPremier = tier.startsWith('premier_');
+                // Get cancellation status from Stripe subscription
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const cancelAtPeriodEnd = (activeSubscription as any).cancel_at_period_end || false;
+                
                 await supabase
                   .from('profiles')
                   .update({
@@ -256,6 +265,7 @@ export async function POST() {
                     ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
                     stripe_subscription_id: activeSubscription.id,
                     stripe_customer_id: customer.id,
+                    cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status from Stripe
                     updated_at: new Date().toISOString(),
                   })
                   .eq('user_id', userId);

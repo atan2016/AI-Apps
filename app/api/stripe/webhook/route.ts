@@ -82,27 +82,58 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
+        const subscriptionId = subscription.id;
 
-        // Get user from customer ID
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (profile && subscription.status === 'active') {
-          // Reset AI credits for premier users on renewal
-          const currentTier = profile.tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
-          const aiCreditsForTier = getAICreditsForTier(currentTier);
-          await supabase
+        // Get user from customer ID or subscription ID
+        let profile = null;
+        if (customerId) {
+          const { data } = await supabase
             .from('profiles')
-            .update({
-              credits: 999999, // Unlimited for active subscriptions
-              ai_credits: aiCreditsForTier > 0 ? aiCreditsForTier : profile.ai_credits, // Reset to tier amount for premier on renewal
-              cancel_at_period_end: subscription.cancel_at_period_end || false, // Sync cancellation status with Stripe
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', profile.user_id);
+            .select('*')
+            .eq('stripe_customer_id', customerId)
+            .single();
+          profile = data;
+        }
+        
+        // Fallback: try to find by subscription ID if customer ID lookup failed
+        if (!profile && subscriptionId) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('stripe_subscription_id', subscriptionId)
+            .single();
+          profile = data;
+        }
+
+        if (profile) {
+          // Always sync cancellation status from Stripe
+          const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
+          
+          // If subscription is active, update credits and tier info
+          if (subscription.status === 'active') {
+            const currentTier = profile.tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
+            const aiCreditsForTier = getAICreditsForTier(currentTier);
+            await supabase
+              .from('profiles')
+              .update({
+                credits: 999999, // Unlimited for active subscriptions
+                ai_credits: aiCreditsForTier > 0 ? aiCreditsForTier : profile.ai_credits, // Reset to tier amount for premier on renewal
+                cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status with Stripe
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', profile.user_id);
+          } else {
+            // Even if subscription is not active, still sync cancellation status
+            await supabase
+              .from('profiles')
+              .update({
+                cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status with Stripe
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', profile.user_id);
+          }
+          
+          console.log(`Subscription updated for user ${profile.user_id}, cancel_at_period_end: ${cancelAtPeriodEnd}, status: ${subscription.status}`);
         }
         break;
       }

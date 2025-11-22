@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -145,27 +145,79 @@ export async function GET() {
         });
       }
 
-      // Sync cancellation status: If Supabase says not cancelled but Stripe says cancelled, update Stripe
-      // This handles cases where user manually updated Supabase or upgraded after cancellation
+      // Map price ID to tier - Stripe is the source of truth
+      const priceToTier: { [key: string]: string } = {
+        // Basic plans
+        'price_1SUwhiJtYXMzJCdNOBtN0Jm0': 'weekly', // $2.99/week (updated weekly price)
+        'price_1SUw6nJtYXMzJCdNEo2C9Z2K': 'monthly', // $5.99/month
+        'price_1SUw7jJtYXMzJCdNG6QlCFhJ': 'yearly', // $14.99/year
+        // Premier plans
+        'price_1SUwfWJtYXMzJCdNKfekXIXv': 'premier_weekly', // $6.99/week
+        'price_1SUw74JtYXMzJCdNdo7CymJs': 'premier_monthly', // $14.99/month
+        'price_1SUwZsJtYXMzJCdNuoGh5VrV': 'premier_yearly', // $79.00/year
+        // Legacy price IDs (in case old subscriptions exist)
+        'price_1SUw6GJtYXMzJCdNZ5NTI75B': 'weekly', // Old weekly price
+        'price_1SSsLiJtYXMzJCdN3oQB39hZ': 'weekly',
+        'price_1SSsMCJtYXMzJCdN1xaQfKmu': 'monthly',
+        'price_1SSsNbJtYXMzJCdNcdAOA1ZK': 'yearly',
+        'price_1ST7PDJtYXMzJCdNjd51XXUb': 'premier_weekly',
+        'price_1ST7OPJtYXMzJCdNu32G50TH': 'premier_monthly',
+        'price_1ST7NrJtYXMzJCdNB9QpyiY5': 'premier_yearly',
+      };
+
+      // Determine tier from Stripe price ID
+      const stripeTier = priceToTier[priceId] || null;
+      const currentTier = profile.tier;
+      
+      // Sync cancellation status: If Stripe says cancelled but Supabase says not cancelled, update Supabase
+      // Stripe is the source of truth for cancellation status
       const stripeCancelStatus = sub.cancel_at_period_end || false;
       const supabaseCancelStatus = profile.cancel_at_period_end || false;
       
-      if (stripeCancelStatus && !supabaseCancelStatus) {
-        // Supabase says not cancelled but Stripe says cancelled - sync Stripe to match Supabase
-        console.log(`Syncing cancellation status: Stripe has cancel_at_period_end=true but Supabase has false. Updating Stripe.`);
+      // Determine if we need to update the profile
+      const needsTierUpdate = stripeTier && stripeTier !== currentTier;
+      const needsCancelStatusUpdate = stripeCancelStatus !== supabaseCancelStatus;
+      
+      if (needsTierUpdate || needsCancelStatusUpdate) {
+        // Stripe and Supabase don't match - sync Supabase to match Stripe
+        console.log(`Syncing subscription data: Stripe tier=${stripeTier}, Supabase tier=${currentTier}, Stripe cancel_at_period_end=${stripeCancelStatus}, Supabase cancel_at_period_end=${supabaseCancelStatus}`);
+        
         try {
-          await stripe.subscriptions.update(subscription.id, {
-            cancel_at_period_end: false,
-          });
-          console.log(`Successfully updated Stripe subscription ${subscription.id} to clear cancellation flag.`);
+          const updateData: any = {
+            cancel_at_period_end: stripeCancelStatus,
+            updated_at: new Date().toISOString(),
+          };
+          
+          // Only update tier if we can determine it from Stripe
+          if (needsTierUpdate && stripeTier) {
+            updateData.tier = stripeTier;
+            updateData.credits = 999999; // Unlimited for paid tiers
+            updateData.ai_credits = getAICreditsForTier(stripeTier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly');
+            console.log(`Updating tier from ${currentTier} to ${stripeTier}`);
+          }
+          
+          await supabase
+            .from('profiles')
+            .update(updateData)
+            .eq('user_id', profile.user_id);
+          
+          console.log(`Successfully synced Supabase profile for user ${profile.user_id} to match Stripe.`);
+          
+          // Update the profile object for response
+          if (needsTierUpdate && stripeTier) {
+            profile.tier = stripeTier as any;
+            profile.credits = 999999;
+            profile.ai_credits = getAICreditsForTier(stripeTier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly');
+          }
+          profile.cancel_at_period_end = stripeCancelStatus;
         } catch (syncError) {
-          console.error('Error syncing cancellation status to Stripe:', syncError);
-          // Continue anyway - we'll use Supabase's value
+          console.error('Error syncing subscription data to Supabase:', syncError);
+          // Continue anyway - we'll use Stripe's value for display
         }
       }
 
-      // Use Supabase's cancellation status if it differs from Stripe (Supabase is source of truth after manual updates)
-      const finalCancelStatus = supabaseCancelStatus !== undefined ? supabaseCancelStatus : stripeCancelStatus;
+      // Use Stripe's cancellation status as the source of truth
+      const finalCancelStatus = stripeCancelStatus;
 
       return NextResponse.json({
         subscription: {

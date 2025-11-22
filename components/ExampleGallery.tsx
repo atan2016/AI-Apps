@@ -62,16 +62,16 @@ export function ExampleGallery({ original, filters, aiModels }: ExampleGalleryPr
 
       {/* AI Models */}
       {aiModels.length > 0 && (
-        <div className="space-y-4">
+        <div id="ai-models" className="space-y-4">
           <h3 className="text-2xl font-semibold">AI Enhancement Models</h3>
           <p className="text-muted-foreground">
-            Advanced AI models powered by Replicate - experiment with different models to find the best result
+            Experiment with different models to find the best result
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {aiModels.map((model) => (
               <div
                 key={model.name}
-                className="group relative rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-shadow"
+                className="group flex flex-col rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-shadow bg-card"
               >
                 <div className="relative aspect-square bg-muted/30">
                   <Image
@@ -82,8 +82,37 @@ export function ExampleGallery({ original, filters, aiModels }: ExampleGalleryPr
                     unoptimized
                   />
                 </div>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-3 text-center">
-                  <p className="font-medium">{model.displayName}</p>
+                <div className="p-4 space-y-2">
+                  <h4 className="font-semibold text-lg">{model.displayName}</h4>
+                  {model.description && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {model.description}
+                    </p>
+                  )}
+                  {(model.publicationUrl || model.githubUrl) && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {model.publicationUrl && (
+                        <a
+                          href={model.publicationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          📄 Paper
+                        </a>
+                      )}
+                      {model.githubUrl && (
+                        <a
+                          href={model.githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          💻 GitHub
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

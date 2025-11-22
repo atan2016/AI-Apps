@@ -245,7 +245,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                 <ul className="space-y-2 mb-6 text-sm">
                   <li className="flex items-center gap-2">
                     <span className="text-purple-500">✓</span>
-                    <strong>100 AI-enhanced images/cycle</strong>
+                    <strong>100-800 AI-enhanced images/cycle</strong> <span className="text-xs text-muted-foreground">(Weekly: 100, Monthly: 200, Yearly: 800)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="text-purple-500">✓</span>
@@ -272,19 +272,19 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                         onClick={() => handleCheckout('premier_weekly')}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                       >
-                        Weekly - $6.99
+                        Weekly - $6.99 <span className="text-xs ml-1">(100 AI credits)</span>
                       </Button>
                       <Button
                         onClick={() => handleCheckout('premier_monthly')}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                       >
-                        Monthly - $14.99
+                        Monthly - $14.99 <span className="text-xs ml-1">(200 AI credits)</span>
                       </Button>
                       <Button
                         onClick={() => handleCheckout('premier_yearly')}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                       >
-                        Yearly - $79 ⭐
+                        Yearly - $79 ⭐ <span className="text-xs ml-1">(800 AI credits)</span>
                       </Button>
                     </>
                   ) : (
@@ -299,7 +299,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                           }}
                           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                         >
-                          Weekly - $6.99
+                          Weekly - $6.99 <span className="text-xs ml-1">(100 AI credits)</span>
                         </Button>
                       </SignUpButton>
                       <SignUpButton 
@@ -312,7 +312,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                           }}
                           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                         >
-                          Monthly - $14.99
+                          Monthly - $14.99 <span className="text-xs ml-1">(200 AI credits)</span>
                         </Button>
                       </SignUpButton>
                       <SignUpButton 
@@ -325,7 +325,7 @@ export function PlansModal({ isOpen, onClose, action }: PlansModalProps) {
                           }}
                           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                         >
-                          Yearly - $79 ⭐
+                          Yearly - $79 ⭐ <span className="text-xs ml-1">(800 AI credits)</span>
                         </Button>
                       </SignUpButton>
                     </>
