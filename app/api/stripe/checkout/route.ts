@@ -33,6 +33,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine mode based on tier (credit_pack is one-time payment, others are subscriptions)
+    const mode = tier === 'credit_pack' ? 'payment' : 'subscription';
+
     // Get or create profile
     let { data: profile } = await supabase
       .from('profiles')
@@ -106,9 +109,6 @@ export async function POST(request: NextRequest) {
         console.log('Existing subscription not found or already ended, creating new checkout session');
       }
     }
-
-    // Determine mode based on tier (credit_pack is one-time payment, others are subscriptions)
-    const mode = tier === 'credit_pack' ? 'payment' : 'subscription';
 
     // If user has a cancelled subscription that's still active, restore it instead of creating new checkout
     if (mode === 'subscription' && profile?.stripe_subscription_id && profile?.cancel_at_period_end) {
