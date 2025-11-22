@@ -252,7 +252,6 @@ export async function POST() {
               }
 
               if (tier) {
-                const isPremier = tier.startsWith('premier_');
                 // Get cancellation status from Stripe subscription
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const cancelAtPeriodEnd = (activeSubscription as any).cancel_at_period_end || false;

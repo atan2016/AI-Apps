@@ -114,11 +114,12 @@ export async function POST(request: NextRequest) {
     let subscription;
     try {
       subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
-    } catch (stripeError: any) {
+    } catch (stripeError) {
       console.error('Stripe retrieve error:', stripeError);
-      const errorMessage = stripeError?.message || 'Unknown Stripe error';
-      const errorType = stripeError?.type || 'unknown';
-      const errorCode = stripeError?.code || 'unknown';
+      const error = stripeError as { message?: string; type?: string; code?: string };
+      const errorMessage = error?.message || 'Unknown Stripe error';
+      const errorType = error?.type || 'unknown';
+      const errorCode = error?.code || 'unknown';
       
       return NextResponse.json(
         { 
@@ -184,9 +185,10 @@ export async function POST(request: NextRequest) {
         profile.stripe_subscription_id,
         updateParams
       );
-    } catch (stripeError: any) {
+    } catch (stripeError) {
       console.error('Stripe update error:', stripeError);
-      const errorMessage = stripeError?.message || 'Unknown Stripe error';
+      const error = stripeError as { message?: string };
+      const errorMessage = error?.message || 'Unknown Stripe error';
       const errorType = stripeError?.type || 'unknown';
       const errorCode = stripeError?.code || 'unknown';
       

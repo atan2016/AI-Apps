@@ -19,13 +19,9 @@ interface EmojiCardProps {
 }
 
 export function EmojiCard({ 
-  id, 
   imageUrl, 
   originalUrl,
   prompt, 
-  likes, 
-  isLiked, 
-  onLike,
   createdAt
 }: EmojiCardProps) {
   const { user, isLoaded } = useUser();

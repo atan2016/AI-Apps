@@ -11,7 +11,6 @@ import { Loader2, Upload, X, CreditCard, Crop, Undo2 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { applyFilters, FILTER_PRESETS } from "@/lib/imageFilters";
 import type { Profile } from "@/lib/supabase";
-import { isPremierTier } from "@/lib/supabase";
 import type { AIModel } from "@/lib/aiEnhancement";
 import { getAIModelDisplayName } from "@/lib/aiEnhancement";
 import { getApiPath } from "@/lib/api-utils";
@@ -522,7 +521,7 @@ export default function Home() {
       let dataUrl: string;
       try {
         dataUrl = await compressImageForAPI(selectedFile);
-      } catch (compressError) {
+      } catch {
         setError('Failed to compress image. Please try a smaller image or compress it manually.');
         setIsGenerating(false);
         return;
@@ -553,8 +552,7 @@ export default function Home() {
         // Use 1.5MB limit for enhanced image (leaving room for original + other data)
         try {
           enhancedUrl = await compressDataUrl(filteredDataUrl, 1.5 * 1024 * 1024);
-        } catch (compressError) {
-          console.error('Failed to compress enhanced image:', compressError);
+        } catch {
           // Fallback to original filtered image (might still be too large, but better than nothing)
           enhancedUrl = filteredDataUrl;
         }
@@ -660,48 +658,6 @@ export default function Home() {
     );
   };
 
-  const handleUpgrade = async (tier: 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly') => {
-    try {
-      const priceIds = {
-        // Test mode - Basic plans (client-side filters only)
-        weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B', // $2.99/week
-        monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K', // $5.99/month
-        yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ', // $14.99/year
-        
-        // Test mode - Premier plans (AI enhancement included)
-        premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv', // $6.99/week
-        premier_monthly: 'price_1SUw74JtYXMzJCdNdo7CymJs', // $14.99/month
-        premier_yearly: 'price_1SUwZsJtYXMzJCdNuoGh5VrV', // $79.00/year
-      };
-
-      const response = await fetch(getApiPath('/api/stripe/checkout'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId: priceIds[tier],
-          tier: tier,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      
-      if (data.url) {
-        // Redirect to Stripe checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error('No checkout URL received');
-      }
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      setError('Failed to start checkout. Please try again.');
-    }
-  };
 
   const handleBuyCredits = async () => {
     try {

@@ -183,7 +183,13 @@ export async function GET() {
         console.log(`Syncing subscription data: Stripe tier=${stripeTier}, Supabase tier=${currentTier}, Stripe cancel_at_period_end=${stripeCancelStatus}, Supabase cancel_at_period_end=${supabaseCancelStatus}`);
         
         try {
-          const updateData: any = {
+          const updateData: {
+            cancel_at_period_end: boolean;
+            updated_at: string;
+            tier?: string;
+            credits?: number;
+            ai_credits?: number;
+          } = {
             cancel_at_period_end: stripeCancelStatus,
             updated_at: new Date().toISOString(),
           };
@@ -205,7 +211,7 @@ export async function GET() {
           
           // Update the profile object for response
           if (needsTierUpdate && stripeTier) {
-            profile.tier = stripeTier as any;
+            profile.tier = stripeTier as Profile['tier'];
             profile.credits = 999999;
             profile.ai_credits = getAICreditsForTier(stripeTier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly');
           }

@@ -47,8 +47,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isPremier = tier.startsWith('premier_');
-
     // Update profile
     const { error: updateError } = await supabase
       .from('profiles')
