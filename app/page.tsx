@@ -181,6 +181,108 @@ export default function Home() {
     });
   };
 
+  // Compress image for API upload - ensures base64 data URL is under Vercel's 4.5MB payload limit
+  // Base64 encoding increases size by ~33%, so we target 3MB raw file size (≈4MB base64)
+  const compressImageForAPI = async (file: File): Promise<string> => {
+    const MAX_BASE64_SIZE = 3 * 1024 * 1024; // 3MB raw = ~4MB base64 (safe for 4.5MB limit)
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // More aggressive resizing for API - max 2000px to keep file size down
+          const MAX_DIMENSION = 2000;
+          
+          if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            if (width > height) {
+              height = (height / width) * MAX_DIMENSION;
+              width = MAX_DIMENSION;
+            } else {
+              width = (width / height) * MAX_DIMENSION;
+              height = MAX_DIMENSION;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Try different quality levels until base64 is under limit
+          const tryCompress = (q: number) => {
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  reject(new Error('Failed to compress image'));
+                  return;
+                }
+                
+                // Convert to base64 to check actual size
+                const reader2 = new FileReader();
+                reader2.onload = () => {
+                  const base64 = reader2.result as string;
+                  // Base64 string length is approximately 4/3 of the original size
+                  // Check if base64 string is under our limit
+                  const base64Size = (base64.length * 3) / 4;
+                  
+                  if (base64Size > MAX_BASE64_SIZE && q > 0.3) {
+                    // Reduce quality further
+                    tryCompress(q - 0.1);
+                  } else if (base64Size > MAX_BASE64_SIZE) {
+                    // If still too large, reduce dimensions
+                    const newMaxDim = Math.max(800, Math.floor(MAX_DIMENSION * 0.8));
+                    if (newMaxDim < MAX_DIMENSION) {
+                      if (width > height) {
+                        height = (height / width) * newMaxDim;
+                        width = newMaxDim;
+                      } else {
+                        width = (width / height) * newMaxDim;
+                        height = newMaxDim;
+                      }
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx2 = canvas.getContext('2d');
+                      if (ctx2) {
+                        ctx2.drawImage(img, 0, 0, width, height);
+                        tryCompress(0.7);
+                      } else {
+                        reject(new Error('Could not get canvas context'));
+                      }
+                    } else {
+                      reject(new Error('Image too large even after maximum compression'));
+                    }
+                  } else {
+                    resolve(base64);
+                  }
+                };
+                reader2.onerror = () => reject(new Error('Failed to read compressed image'));
+                reader2.readAsDataURL(blob);
+              },
+              'image/jpeg',
+              q
+            );
+          };
+          
+          tryCompress(0.85); // Start with 85% quality
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -338,13 +440,16 @@ export default function Home() {
     setError(null);
 
     try {
-      // Convert file to data URL
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
+      // Compress and convert file to data URL for API upload
+      // This ensures the payload stays under Vercel's 4.5MB limit
+      let dataUrl: string;
+      try {
+        dataUrl = await compressImageForAPI(selectedFile);
+      } catch (compressError) {
+        setError('Failed to compress image. Please try a smaller image or compress it manually.');
+        setIsGenerating(false);
+        return;
+      }
 
       // Prepare request body with filter name for display
       const filterNameMap: { [key: string]: string } = {
