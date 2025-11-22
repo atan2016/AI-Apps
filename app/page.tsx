@@ -395,7 +395,7 @@ export default function Home() {
         // Try to parse as JSON
         try {
           data = await response.json();
-        } catch (parseError) {
+        } catch {
           // If JSON parsing fails, read as text
           const text = await response.text();
           throw new Error(`Failed to parse response: ${text || response.statusText}`);

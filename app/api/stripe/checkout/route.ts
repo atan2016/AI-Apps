@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, type Profile } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
             .from('profiles')
             .update({
               cancel_at_period_end: false,
-              tier: tier as any,
+              tier: tier as Profile['tier'],
               credits: 999999,
               ai_credits: isPremier ? 100 : 0,
               updated_at: new Date().toISOString(),
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             restored: true,
           });
         }
-      } catch (error) {
+      } catch {
         // If subscription doesn't exist or is already cancelled, continue with new checkout
         console.log('Existing subscription not found or already ended, creating new checkout session');
       }
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
             .from('profiles')
             .update({
               cancel_at_period_end: false,
-              tier: tier as any,
+              tier: tier as Profile['tier'],
               credits: 999999,
               ai_credits: isPremier ? 100 : 0,
               updated_at: new Date().toISOString(),
