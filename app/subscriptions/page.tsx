@@ -291,7 +291,7 @@ export default function SubscriptionsPage() {
   // Handle upgrade/downgrade with warning for existing subscriptions
   const handleUpgrade = async (tier: 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly') => {
     const priceIds: { [key: string]: string } = {
-      weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B',
+      weekly: 'price_1SUwhiJtYXMzJCdNOBtN0Jm0',
       monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K',
       yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ',
       premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv',
@@ -349,7 +349,7 @@ export default function SubscriptionsPage() {
       setError(null);
       
       const priceIds: { [key: string]: string } = {
-        weekly: 'price_1SUw6GJtYXMzJCdNZ5NTI75B',
+        weekly: 'price_1SUwhiJtYXMzJCdNOBtN0Jm0',
         monthly: 'price_1SUw6nJtYXMzJCdNEo2C9Z2K',
         yearly: 'price_1SUw7jJtYXMzJCdNG6QlCFhJ',
         premier_weekly: 'price_1SUwfWJtYXMzJCdNKfekXIXv',
@@ -369,9 +369,29 @@ export default function SubscriptionsPage() {
       if (!response.ok) {
         const contentType = response.headers.get("content-type");
         let errorMessage = "Failed to update subscription";
+        let errorDetails = null;
+        
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
           errorMessage = data.error || errorMessage;
+          errorDetails = data.details || data.rawError || null;
+          
+          // If we have detailed error info, append it
+          if (errorDetails && errorDetails !== errorMessage) {
+            errorMessage = `${errorMessage}: ${errorDetails}`;
+          }
+          
+          // Log full error for debugging
+          console.error('Subscription update error:', {
+            status: response.status,
+            statusText: response.statusText,
+            fullData: data,  // Log the entire response
+            error: data.error,
+            details: data.details,
+            type: data.type,
+            code: data.code,
+            rawError: data.rawError,
+          });
         } else {
           const text = await response.text();
           errorMessage = text || errorMessage;
