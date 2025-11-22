@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, type Profile } from '@/lib/supabase';
+import { supabaseAdmin, type Profile, getAICreditsForTier } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -85,14 +85,13 @@ export async function POST(request: NextRequest) {
           });
 
           // Update profile to clear cancellation flag
-          const isPremier = tier.startsWith('premier_');
           await supabase
             .from('profiles')
             .update({
               cancel_at_period_end: false,
               tier: tier as Profile['tier'],
               credits: 999999,
-              ai_credits: isPremier ? 100 : 0,
+              ai_credits: getAICreditsForTier(tier as Profile['tier']),
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', userId);
@@ -144,14 +143,13 @@ export async function POST(request: NextRequest) {
           );
 
           // Update profile to clear cancellation flag and update tier
-          const isPremier = tier.startsWith('premier_');
           await supabase
             .from('profiles')
             .update({
               cancel_at_period_end: false,
               tier: tier as Profile['tier'],
               credits: 999999,
-              ai_credits: isPremier ? 100 : 0,
+              ai_credits: getAICreditsForTier(tier as Profile['tier']),
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', userId);

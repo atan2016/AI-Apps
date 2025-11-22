@@ -40,8 +40,6 @@ export default function SubscriptionsPage() {
   const router = useRouter();
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -114,59 +112,6 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    try {
-      setCancelling(true);
-      setError(null);
-      const response = await fetch(getApiPath("/api/subscriptions"), {
-        method: "DELETE",
-      });
-
-      // Get content type before reading body
-      const contentType = response.headers.get("content-type") || "";
-
-      if (!response.ok) {
-        let errorMessage = `Failed to cancel subscription (${response.status} ${response.statusText})`;
-        try {
-          if (contentType.includes("application/json")) {
-            const data = await response.json();
-            errorMessage = data.error || errorMessage;
-          } else {
-            const text = await response.text();
-            errorMessage = text || errorMessage;
-          }
-        } catch (parseError) {
-          // If we can't parse the error, include status info
-          console.error("Error parsing error response:", parseError);
-          errorMessage = `Failed to cancel subscription: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Response is OK - parse it
-      if (!contentType.includes("application/json")) {
-        const text = await response.text();
-        throw new Error(`Unexpected response format: ${text.substring(0, 100)}`);
-      }
-
-      const data = await response.json();
-      
-      // Verify we got success response
-      if (!data.success) {
-        throw new Error(data.error || data.message || "Failed to cancel subscription");
-      }
-
-      // Refresh subscription data
-      await fetchSubscription();
-      setShowCancelConfirm(false);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to cancel subscription";
-      setError(errorMessage);
-      console.error("Error cancelling subscription:", err);
-    } finally {
-      setCancelling(false);
-    }
-  };
 
   const handleOpenPortal = async () => {
     try {
@@ -861,7 +806,7 @@ export default function SubscriptionsPage() {
                             const formatted = formatDate(endDate);
                             return formatted !== 'Invalid date' ? formatted : 'the end of your current billing period';
                           })()}
-                          . You&apos;ll continue to have access until then.
+                          . You&apos;ll continue to have access until then. To manage your subscription or reactivate, please use the &quot;Manage Payment Methods&quot; button above to access the Stripe Customer Portal.
                         </p>
                       </div>
                     )}
@@ -1038,16 +983,6 @@ export default function SubscriptionsPage() {
                     )}
                     Manage Payment Methods
                   </Button>
-                  {subscriptionData.subscription.status === "active" &&
-                    !subscriptionData.subscription.cancel_at_period_end && (
-                      <Button
-                        variant="destructive"
-                        onClick={() => setShowCancelConfirm(true)}
-                        disabled={cancelling}
-                      >
-                        Cancel Subscription
-                      </Button>
-                    )}
                 </CardFooter>
               )}
             </Card>
@@ -1298,58 +1233,6 @@ export default function SubscriptionsPage() {
                       className="bg-primary"
                     >
                       Awesome!
-                    </Button>
-                  </CardFooter>
-                </Card>
-              </div>
-            )}
-
-            {/* Cancel Confirmation Modal */}
-            {showCancelConfirm && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <Card className="w-full max-w-md">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                      Cancel Subscription
-                    </CardTitle>
-                    <CardDescription>
-                      Are you sure you want to cancel your subscription?
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      Your subscription will remain active until the end of the current billing period. You&apos;ll
-                      continue to have access to all features until{" "}
-                      {(() => {
-                        const endDate = subscriptionData.nextBillingDate || subscriptionData.subscription?.current_period_end;
-                        const formatted = formatDate(endDate);
-                        return formatted !== 'Invalid date' ? formatted : 'the end of your current billing period';
-                      })()}
-                      . After that, your account will be downgraded to the free plan.
-                    </p>
-                  </CardContent>
-                  <CardFooter className="flex gap-2 justify-end">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelConfirm(false)}
-                      disabled={cancelling}
-                    >
-                      Keep Subscription
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelSubscription}
-                      disabled={cancelling}
-                    >
-                      {cancelling ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Cancelling...
-                        </>
-                      ) : (
-                        "Yes, Cancel Subscription"
-                      )}
                     </Button>
                   </CardFooter>
                 </Card>

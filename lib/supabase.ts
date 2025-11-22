@@ -43,6 +43,20 @@ export function isPaidTier(tier: Profile['tier']): boolean {
   return tier !== 'free';
 }
 
+// Helper function to get AI credits based on tier
+export function getAICreditsForTier(tier: Profile['tier']): number {
+  switch (tier) {
+    case 'premier_yearly':
+      return 800;
+    case 'premier_monthly':
+      return 200;
+    case 'premier_weekly':
+      return 100;
+    default:
+      return 0;
+  }
+}
+
 export interface ImageRecord {
   id: string;
   user_id: string;

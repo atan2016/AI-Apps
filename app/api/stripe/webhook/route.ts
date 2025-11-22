@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -62,13 +62,12 @@ export async function POST(request: NextRequest) {
             }
           } else {
             // Subscription - update tier and credits
-            const isPremier = tier.startsWith('premier_');
             await supabase
               .from('profiles')
               .update({
                 tier: tier,
                 credits: 999999, // Unlimited for paid tiers
-                ai_credits: isPremier ? 100 : 0, // 100 AI credits for premier, 0 for basic
+                ai_credits: getAICreditsForTier(tier),
                 stripe_subscription_id: session.subscription as string,
                 updated_at: new Date().toISOString(),
               })
@@ -93,12 +92,13 @@ export async function POST(request: NextRequest) {
 
         if (profile && subscription.status === 'active') {
           // Reset AI credits for premier users on renewal
-          const isPremier = profile.tier.startsWith('premier_');
+          const currentTier = profile.tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
+          const aiCreditsForTier = getAICreditsForTier(currentTier);
           await supabase
             .from('profiles')
             .update({
               credits: 999999, // Unlimited for active subscriptions
-              ai_credits: isPremier ? 100 : profile.ai_credits, // Reset to 100 for premier on renewal
+              ai_credits: aiCreditsForTier > 0 ? aiCreditsForTier : profile.ai_credits, // Reset to tier amount for premier on renewal
               cancel_at_period_end: subscription.cancel_at_period_end || false, // Sync cancellation status with Stripe
               updated_at: new Date().toISOString(),
             })

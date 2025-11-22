@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -140,7 +140,7 @@ export async function POST() {
           .update({
             tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
             credits: 999999,
-            ai_credits: isPremier ? 100 : 0,
+            ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
             stripe_subscription_id: activeSubscription.id,
             updated_at: new Date().toISOString(),
           })
@@ -253,7 +253,7 @@ export async function POST() {
                   .update({
                     tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
                     credits: 999999,
-                    ai_credits: isPremier ? 100 : 0,
+                    ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
                     stripe_subscription_id: activeSubscription.id,
                     stripe_customer_id: customer.id,
                     updated_at: new Date().toISOString(),
@@ -335,15 +335,14 @@ export async function POST() {
             console.warn(`Could not determine tier for price ID ${priceId}, keeping existing tier: ${tier}`);
           }
 
-          const isPremier = tier.startsWith('premier_');
-          console.log(`Updating profile to tier: ${tier}, isPremier: ${isPremier}`);
+          console.log(`Updating profile to tier: ${tier}`);
 
           await supabase
             .from('profiles')
             .update({
               tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
               credits: 999999,
-              ai_credits: isPremier ? 100 : 0,
+              ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
               updated_at: new Date().toISOString(),
             })
             .eq('user_id', userId);

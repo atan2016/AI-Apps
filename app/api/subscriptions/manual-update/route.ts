@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       .update({
         tier: tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly',
         credits: 999999,
-        ai_credits: isPremier ? 100 : 0,
+        ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId);
