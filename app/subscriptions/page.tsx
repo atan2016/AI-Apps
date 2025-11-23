@@ -166,7 +166,7 @@ export default function SubscriptionsPage() {
               <Card className="mb-6 border-green-500 bg-green-50 dark:bg-green-950/20">
                 <CardContent className="pt-6">
                   <p className="text-green-800 dark:text-green-200 font-medium">
-                    Payment successful! Your credits are being processed. If they don't appear, click Refresh.
+                    Payment successful! Your credits are being processed. If they don&apos;t appear, click Refresh.
                   </p>
                 </CardContent>
               </Card>

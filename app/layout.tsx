@@ -44,7 +44,7 @@ export default function RootLayout({
             title: 'One Simple Step to Sign Up',
           },
         },
-      } as any}
+      } as Record<string, unknown>}
       appearance={{
         elements: {
           modalContent: "clerk-modal-content",

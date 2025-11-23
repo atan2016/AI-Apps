@@ -678,7 +678,7 @@ export default function Home() {
 
       // Get content type to determine how to parse
       const contentType = response.headers.get("content-type") || "";
-      let data: any = null;
+      let data: unknown = null;
 
       // Parse response body (can only be read once)
       if (contentType.includes("application/json")) {
@@ -708,18 +708,21 @@ export default function Home() {
       // Check if response indicates an error
       if (!response.ok) {
         // Handle payment required error
-        if (response.status === 402 && data && typeof data === 'object' && data.requiresPayment) {
-          if (data.isGuest) {
-            // Guest user needs to sign up before payment
-            setShowSignUpModal(true);
-            setError(`You've used all ${FREE_CREDITS} free AI credits. Please sign up to get ${FREE_CREDITS} more free credits or purchase credits.`);
-            setIsGenerating(false);
-            return;
-          } else {
-            // Signed-in user needs to buy credits
-            setError(data.error || 'Please purchase credits to continue');
-            setIsGenerating(false);
-            return;
+        if (response.status === 402 && data && typeof data === 'object' && data !== null) {
+          const errorData = data as { requiresPayment?: boolean; isGuest?: boolean; error?: string };
+          if (errorData.requiresPayment) {
+            if (errorData.isGuest) {
+              // Guest user needs to sign up before payment
+              setShowSignUpModal(true);
+              setError(`You've used all ${FREE_CREDITS} free AI credits. Please sign up to get ${FREE_CREDITS} more free credits or purchase credits.`);
+              setIsGenerating(false);
+              return;
+            } else {
+              // Signed-in user needs to buy credits
+              setError(errorData.error || 'Please purchase credits to continue');
+              setIsGenerating(false);
+              return;
+            }
           }
         }
         
@@ -728,10 +731,11 @@ export default function Home() {
         
         if (data) {
           if (typeof data === 'object' && data !== null) {
-            if (data.error) {
-              errorMessage = data.error;
-            } else if (data.message) {
-              errorMessage = data.message;
+            const errorObj = data as { error?: string; message?: string };
+            if (errorObj.error) {
+              errorMessage = errorObj.error;
+            } else if (errorObj.message) {
+              errorMessage = errorObj.message;
             } else if (Object.keys(data).length === 0) {
               // Empty object - use status text
               errorMessage = response.statusText || `Server error (${response.status})`;
@@ -761,6 +765,19 @@ export default function Home() {
         return;
       }
       
+      // Type guard for successful response data
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response data');
+      }
+      
+      const responseData = data as { 
+        imageId?: string; 
+        imageUrl: string; 
+        freeCreditsRemaining?: number; 
+        aiCreditsRemaining?: number; 
+        isGuest?: boolean;
+      };
+
       // Track free AI images used
       if (useAI) {
         setFreeAiImagesUsed(prev => prev + 1);
@@ -768,9 +785,9 @@ export default function Home() {
 
       // Add the new image to the beginning of the list
       const newImage: ImageData = {
-        id: data.imageId || Date.now().toString(),
+        id: responseData.imageId || Date.now().toString(),
         originalUrl: dataUrl,
-        enhancedUrl: data.imageUrl,
+        enhancedUrl: responseData.imageUrl,
         prompt: useAI ? `AI - ${getAIModelDisplayName(selectedAIModel)}` : filterDisplayName,
         likes: 0,
         isLiked: false,
@@ -780,7 +797,7 @@ export default function Home() {
       setImages((prev) => [newImage, ...prev]);
       
       // If guest user, increment their image count
-      if (data.isGuest && typeof window !== 'undefined') {
+      if (responseData.isGuest && typeof window !== 'undefined') {
         const newCount = guestImageCount + 1;
         localStorage.setItem('guestImageCount', newCount.toString());
         setGuestImageCount(newCount);
@@ -789,18 +806,18 @@ export default function Home() {
       // Refresh profile to update credits
       if (profile) {
         const updatedProfile = { ...profile };
-        if (data.freeCreditsRemaining !== undefined) {
+        if (responseData.freeCreditsRemaining !== undefined) {
           // Free credits are tracked separately
         }
-        if (data.aiCreditsRemaining !== undefined) {
-          updatedProfile.ai_credits = data.aiCreditsRemaining;
+        if (responseData.aiCreditsRemaining !== undefined) {
+          updatedProfile.ai_credits = responseData.aiCreditsRemaining;
         }
         setProfile(updatedProfile);
       }
       
       // Update free AI images count from response
-      if (useAI && data.freeCreditsRemaining !== undefined) {
-        const used = FREE_CREDITS - data.freeCreditsRemaining;
+      if (useAI && responseData.freeCreditsRemaining !== undefined) {
+        const used = FREE_CREDITS - responseData.freeCreditsRemaining;
         setFreeAiImagesUsed(used);
       }
       
@@ -1317,7 +1334,7 @@ export default function Home() {
           <div className="bg-background p-6 rounded-lg max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">Purchase Credits</h2>
             <p className="text-muted-foreground mb-4">
-              You've used all {FREE_CREDITS} free AI credits. Visit the subscriptions page to purchase credits.
+              You&apos;ve used all {FREE_CREDITS} free AI credits. Visit the subscriptions page to purchase credits.
             </p>
             
             <div className="space-y-4">
