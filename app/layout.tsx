@@ -37,6 +37,28 @@ export default function RootLayout({
     <ClerkProvider
       signInUrl={process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || "/sign-in"}
       signUpUrl={process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || "/sign-up"}
+      localization={{
+        locale: 'en-US',
+        signUp: {
+          start: {
+            title: 'One Simple Step to Sign Up',
+          },
+        },
+      } as any}
+      appearance={{
+        elements: {
+          modalContent: "clerk-modal-content",
+          headerTitle: "text-2xl font-bold",
+          formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90",
+        },
+        variables: {
+          colorPrimary: "hsl(var(--primary))",
+        },
+        layout: {
+          socialButtonsPlacement: "top",
+          socialButtonsVariant: "blockButton",
+        },
+      }}
     >
       <html lang="en">
         <body

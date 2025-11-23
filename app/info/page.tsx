@@ -197,6 +197,40 @@ export default function InfoPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="bg-muted/30 border-t">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Common questions about how our service works
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {/* FAQ Item: What happens to uploaded photos */}
+            <div className="p-6 rounded-lg border bg-card">
+              <h3 className="text-xl font-semibold mb-3">
+                What happens to my uploaded photos?
+              </h3>
+              <div className="space-y-3 text-muted-foreground">
+                <p>
+                  <strong className="text-foreground">⏰ Important:</strong> For privacy reasons, your images will be temporarily stored in the backend database for troubleshooting purposes only and will be automatically deleted after 24 hours.
+                </p>
+                <p>
+                  Please download your enhanced images within this timeframe to keep them permanently. We recommend downloading your enhanced images immediately after processing to ensure you have a permanent copy.
+                </p>
+                <p>
+                  All images are stored securely and are only accessible to you. The automatic cleanup process runs daily to remove images older than 24 hours, helping us maintain efficient storage and protect your privacy.
+                </p>
+              </div>
+            </div>
+
+            {/* You can add more FAQ items here in the future */}
+          </div>
+        </div>
+      </section>
+
       {/* Call-to-Action Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
         <div className="text-center space-y-6">

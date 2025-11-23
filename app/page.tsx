@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, FormEvent, ChangeEvent, useEffect } from "react";
+import { useState, FormEvent, ChangeEvent, useEffect, useRef } from "react";
+import * as React from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,12 +9,14 @@ import { EmojiCard } from "@/components/EmojiCard";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { ImageCropper } from "@/components/ImageCropper";
 import { Loader2, Upload, X, CreditCard, Crop, Undo2 } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, SignUpButton } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { applyFilters, FILTER_PRESETS } from "@/lib/imageFilters";
 import type { Profile } from "@/lib/supabase";
 import type { AIModel } from "@/lib/aiEnhancement";
 import { getAIModelDisplayName } from "@/lib/aiEnhancement";
 import { getApiPath } from "@/lib/api-utils";
+import { getFreeCredits } from "@/lib/config";
 
 interface ImageData {
   id: string;
@@ -27,6 +30,7 @@ interface ImageData {
 
 export default function Home() {
   const { user, isLoaded } = useUser();
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -40,6 +44,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [guestSessionId, setGuestSessionId] = useState<string | null>(null);
   const [guestImageCount, setGuestImageCount] = useState(0);
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const signUpButtonRef = useRef<HTMLButtonElement>(null);
   
   // Cropping state
   const [isCropping, setIsCropping] = useState(false);
@@ -50,8 +56,13 @@ export default function Home() {
   const [rotationAngle, setRotationAngle] = useState(0);
   const [originalFileBeforeCrop, setOriginalFileBeforeCrop] = useState<File | null>(null);
 
-  // Check if user has premier tier
-  const isPremierUser = profile && profile.tier.startsWith('premier_');
+  // Get free credits from configuration
+  const FREE_CREDITS = getFreeCredits();
+  const MAX_GUEST_IMAGES = FREE_CREDITS;
+  
+  // Track free AI images used and purchased credits
+  const [freeAiImagesUsed, setFreeAiImagesUsed] = useState(0);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Initialize guest session on mount
   useEffect(() => {
@@ -82,8 +93,35 @@ export default function Home() {
     if (isLoaded && user) {
       fetchProfile();
       fetchUserImages();
+      
+      // If user just signed up (was not signed in before), redirect to subscriptions
+      // Check if we should redirect after sign-up
+      const shouldRedirectToSubscriptions = sessionStorage.getItem('redirectAfterSignUp');
+      if (shouldRedirectToSubscriptions === 'true') {
+        sessionStorage.removeItem('redirectAfterSignUp');
+        router.push('/subscriptions');
+      }
     }
-  }, [isLoaded, user]);
+  }, [isLoaded, user, router]);
+
+  // Count free AI images used
+  useEffect(() => {
+    if (images.length > 0) {
+      const aiImages = images.filter(img => img.prompt.startsWith('AI -'));
+      setFreeAiImagesUsed(aiImages.length);
+    }
+  }, [images]);
+
+  // Trigger Clerk sign-up modal when showSignUpModal is true
+  useEffect(() => {
+    if (showSignUpModal && signUpButtonRef.current) {
+      // Trigger click to open Clerk modal
+      setTimeout(() => {
+        signUpButtonRef.current?.click();
+        setShowSignUpModal(false); // Reset state after triggering
+      }, 100);
+    }
+  }, [showSignUpModal]);
 
   const fetchProfile = async () => {
     try {
@@ -503,13 +541,36 @@ export default function Home() {
       return;
     }
 
-    // Check if guest has already used all their free images
-    // Skip this check if test guest mode is enabled
-    const ENABLE_TEST_GUEST = process.env.NEXT_PUBLIC_ENABLE_TEST_GUEST === 'true';
-    const MAX_GUEST_IMAGES = 20;
-    if (!user && guestImageCount >= MAX_GUEST_IMAGES && !ENABLE_TEST_GUEST) {
-      setError(`You've used all ${MAX_GUEST_IMAGES} free images. Please sign up to create more images.`);
-      return;
+    // For AI enhancement, check if user needs to purchase credits
+    if (useAI) {
+      // For guest users, use localStorage count; for signed-in users, use images array
+      let aiImagesCount: number;
+      if (!user) {
+        // Guest user: use localStorage count
+        aiImagesCount = guestImageCount;
+      } else {
+        // Signed-in user: count from images array
+        aiImagesCount = images.filter(img => img.prompt.startsWith('AI -')).length;
+      }
+      
+      const hasFreeCreditsLeft = aiImagesCount < FREE_CREDITS;
+      const hasPurchasedCredits = profile && (profile.ai_credits || 0) > 0;
+      
+      if (!hasFreeCreditsLeft && !hasPurchasedCredits) {
+        // No free credits left and no purchased credits - prompt to sign up or purchase
+        if (!user) {
+          // Guest user - require sign-up before payment
+          setShowSignUpModal(true);
+          setError(`You've used all ${FREE_CREDITS} free AI credits. Please sign up to get ${FREE_CREDITS} more free credits or purchase credits.`);
+          return;
+        } else {
+          // Signed-in user - show error with purchase option
+          setError('You\'ve used all free AI credits. Please purchase credits to continue.');
+          // Optionally show a button to purchase credits
+          // For now, we'll just show the error and they can use the subscriptions page
+        }
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -546,16 +607,36 @@ export default function Home() {
       // For client-side filters, apply filter and compress the enhanced image
       let enhancedUrl: string | undefined;
       if (!useAI) {
-        const filterOptions = FILTER_PRESETS[selectedFilter as keyof typeof FILTER_PRESETS];
-        const filteredDataUrl = await applyFilters(dataUrl, filterOptions);
-        // Compress the enhanced image to keep total payload under limit
-        // Use 1.5MB limit for enhanced image (leaving room for original + other data)
         try {
-          enhancedUrl = await compressDataUrl(filteredDataUrl, 1.5 * 1024 * 1024);
-        } catch {
-          // Fallback to original filtered image (might still be too large, but better than nothing)
-          enhancedUrl = filteredDataUrl;
+          const filterOptions = FILTER_PRESETS[selectedFilter as keyof typeof FILTER_PRESETS];
+          const filteredDataUrl = await applyFilters(dataUrl, filterOptions);
+          // Compress the enhanced image to keep total payload under limit
+          // Use 1.5MB limit for enhanced image (leaving room for original + other data)
+          try {
+            enhancedUrl = await compressDataUrl(filteredDataUrl, 1.5 * 1024 * 1024);
+          } catch (compressErr) {
+            console.warn('Failed to compress filtered image, using original filtered image:', compressErr);
+            // Fallback to original filtered image (might still be too large, but better than nothing)
+            enhancedUrl = filteredDataUrl;
+          }
+          
+          // Ensure enhancedUrl is set
+          if (!enhancedUrl) {
+            throw new Error('Failed to generate enhanced image');
+          }
+        } catch (filterErr) {
+          console.error('Error applying filter:', filterErr);
+          setError(filterErr instanceof Error ? filterErr.message : 'Failed to apply filter. Please try again.');
+          setIsGenerating(false);
+          return;
         }
+      }
+
+      // Validate that enhancedUrl is provided for client-side filters
+      if (!useAI && !enhancedUrl) {
+        setError('Failed to generate enhanced image. Please try again.');
+        setIsGenerating(false);
+        return;
       }
 
       const requestBody: { imageUrl: string; enhancedUrl?: string; useAI: boolean; aiModel?: AIModel; filterName: string } = {
@@ -572,36 +653,117 @@ export default function Home() {
         guestSessionId: !user ? guestSessionId : undefined,
       };
 
-      const response = await fetch(getApiPath("/api/generate"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestPayload),
-      });
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout (2 minutes)
+
+      let response;
+      try {
+        response = await fetch(getApiPath("/api/generate"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestPayload),
+          signal: controller.signal,
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Request timed out. The enhancement is taking longer than expected. Please try again.');
+        }
+        throw fetchError;
+      }
+      clearTimeout(timeoutId);
 
       // Get content type to determine how to parse
       const contentType = response.headers.get("content-type") || "";
-      let data;
+      let data: any = null;
 
+      // Parse response body (can only be read once)
       if (contentType.includes("application/json")) {
-        // Try to parse as JSON
         try {
           data = await response.json();
-        } catch {
+        } catch (parseError) {
           // If JSON parsing fails, read as text
-          const text = await response.text();
-          throw new Error(`Failed to parse response: ${text || response.statusText}`);
+          try {
+            const text = await response.text();
+            data = text || null;
+          } catch (textError) {
+            console.error('Failed to read response:', textError);
+            data = null;
+          }
         }
       } else {
         // Not JSON - read as text
-        const text = await response.text();
-        throw new Error(`Unexpected response format: ${text || response.statusText}`);
+        try {
+          const text = await response.text();
+          data = text || null;
+        } catch (textError) {
+          console.error('Failed to read response as text:', textError);
+          data = null;
+        }
       }
 
       // Check if response indicates an error
       if (!response.ok) {
-        throw new Error(data.error || `Failed to save enhanced image: ${response.status} ${response.statusText}`);
+        // Handle payment required error
+        if (response.status === 402 && data && typeof data === 'object' && data.requiresPayment) {
+          if (data.isGuest) {
+            // Guest user needs to sign up before payment
+            setShowSignUpModal(true);
+            setError(`You've used all ${FREE_CREDITS} free AI credits. Please sign up to get ${FREE_CREDITS} more free credits or purchase credits.`);
+            setIsGenerating(false);
+            return;
+          } else {
+            // Signed-in user needs to buy credits
+            setError(data.error || 'Please purchase credits to continue');
+            setIsGenerating(false);
+            return;
+          }
+        }
+        
+        // Extract error message from response
+        let errorMessage = `Failed to enhance image (${response.status})`;
+        
+        if (data) {
+          if (typeof data === 'object' && data !== null) {
+            if (data.error) {
+              errorMessage = data.error;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (Object.keys(data).length === 0) {
+              // Empty object - use status text
+              errorMessage = response.statusText || `Server error (${response.status})`;
+            }
+          } else if (typeof data === 'string' && data.trim()) {
+            errorMessage = data;
+          }
+        } else {
+          // No data - use status text
+          errorMessage = response.statusText || `Server error (${response.status})`;
+        }
+        
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: contentType,
+          data: data,
+          errorMessage: errorMessage
+        });
+        
+        if (response.statusText && !errorMessage.includes(response.statusText)) {
+          errorMessage = `${errorMessage}: ${response.statusText}`;
+        }
+        
+        setError(errorMessage);
+        setIsGenerating(false);
+        return;
+      }
+      
+      // Track free AI images used
+      if (useAI) {
+        setFreeAiImagesUsed(prev => prev + 1);
       }
 
       // Add the new image to the beginning of the list
@@ -627,8 +789,8 @@ export default function Home() {
       // Refresh profile to update credits
       if (profile) {
         const updatedProfile = { ...profile };
-        if (data.creditsRemaining !== undefined) {
-          updatedProfile.credits = data.creditsRemaining;
+        if (data.freeCreditsRemaining !== undefined) {
+          // Free credits are tracked separately
         }
         if (data.aiCreditsRemaining !== undefined) {
           updatedProfile.ai_credits = data.aiCreditsRemaining;
@@ -636,10 +798,27 @@ export default function Home() {
         setProfile(updatedProfile);
       }
       
+      // Update free AI images count from response
+      if (useAI && data.freeCreditsRemaining !== undefined) {
+        const used = FREE_CREDITS - data.freeCreditsRemaining;
+        setFreeAiImagesUsed(used);
+      }
+      
       clearSelection();
+      setIsGenerating(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to enhance image");
-    } finally {
+      console.error('Error in handleSubmit:', err);
+      let errorMessage = "Failed to enhance image";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (err && typeof err === 'object') {
+        if ('message' in err) {
+          errorMessage = String(err.message);
+        } else if ('error' in err) {
+          errorMessage = String(err.error);
+        }
+      }
+      setError(errorMessage);
       setIsGenerating(false);
     }
   };
@@ -659,35 +838,69 @@ export default function Home() {
   };
 
 
-  const handleBuyCredits = async () => {
+  const handleBuyCredits = async (type: 'single' | 'pack') => {
+    // This function is only for authenticated users now
+    // Guest users must sign up first
+    if (!user) {
+      setError('Please sign up to purchase credits');
+      setShowSignUpModal(true);
+      return;
+    }
+
     try {
-      const creditPackPriceId = 'price_1ST7PrJtYXMzJCdNlbBY2Fmg';
+      if (type === 'single') {
+        // Pay $0.10 for single image
+        const response = await fetch(getApiPath('/api/stripe/pay-per-image'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
 
-      const response = await fetch(getApiPath('/api/stripe/checkout'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId: creditPackPriceId,
-          tier: 'credit_pack',
-        }),
-      });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create checkout session');
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      
-      if (data.url) {
-        window.location.href = data.url;
+        const data = await response.json();
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('No checkout URL received');
+        }
       } else {
-        throw new Error('No checkout URL received');
+        // Buy 50 credits for $5
+        const creditPackPriceId = 'price_1ST7PrJtYXMzJCdNlbBY2Fmg';
+
+        const response = await fetch(getApiPath('/api/stripe/checkout'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            priceId: creditPackPriceId,
+            tier: 'credit_pack',
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create checkout session');
+        }
+
+        const data = await response.json();
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          throw new Error('No checkout URL received');
+        }
       }
     } catch (error) {
       console.error('Error creating checkout session:', error);
-      setError('Failed to start checkout. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to start checkout. Please try again.');
     }
   };
 
@@ -712,15 +925,29 @@ export default function Home() {
           {/* Guest User Display */}
           {isLoaded && !user && (
             <div className="mt-6 flex flex-col items-center gap-2">
-              <div className="inline-flex items-center gap-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/30 dark:to-blue-950/30 border border-green-200 dark:border-green-800 px-6 py-3 rounded-full">
+              <div 
+                className={`inline-flex items-center gap-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/30 dark:to-blue-950/30 border border-green-200 dark:border-green-800 px-6 py-3 rounded-full ${
+                  guestImageCount >= FREE_CREDITS 
+                    ? 'cursor-pointer hover:from-green-100 hover:to-blue-100 dark:hover:from-green-900/40 dark:hover:to-blue-900/40 transition-colors' 
+                    : ''
+                }`}
+                onClick={() => {
+                  if (guestImageCount >= FREE_CREDITS) {
+                    // Set flag to redirect after sign-up
+                    sessionStorage.setItem('redirectAfterSignUp', 'true');
+                    // Trigger sign-up modal
+                    setShowSignUpModal(true);
+                  }
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-green-600 dark:text-green-400" />
                   <span className="font-medium text-green-800 dark:text-green-300">
-                    {guestImageCount >= 20 
-                      ? `You've used all 20 free images. Sign up to create more!`
+                    {guestImageCount >= FREE_CREDITS 
+                      ? `You've used all ${FREE_CREDITS} free images. Sign up to get ${FREE_CREDITS} more free credits!`
                       : (
                           <span className="font-bold">
-                            Create {20 - guestImageCount} images for FREE - No sign-up required!{' '}
+                            Restore {FREE_CREDITS - guestImageCount} images for FREE - No sign-up required!{' '}
                             <Link href="/info" className="underline hover:text-green-900 dark:hover:text-green-200 font-normal">
                               Click here to see what AI can do to restore your photos
                             </Link>
@@ -732,103 +959,14 @@ export default function Home() {
             </div>
           )}
           
-          {/* Credits Display */}
-          {user && profile && (
-            <div className="mt-6 flex flex-col items-center gap-2">
-              {/* Plan Type Badge */}
-              {profile.tier !== 'free' && (
-                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-semibold">
-                  {profile.tier === 'weekly' && '⭐ Basic Weekly Plan'}
-                  {profile.tier === 'monthly' && '⭐ Basic Monthly Plan'}
-                  {profile.tier === 'yearly' && '⭐ Basic Yearly Plan'}
-                  {profile.tier === 'premier_weekly' && '👑 Premier Weekly Plan'}
-                  {profile.tier === 'premier_monthly' && '👑 Premier Monthly Plan'}
-                  {profile.tier === 'premier_yearly' && '👑 Premier Yearly Plan'}
-                </div>
-              )}
-              
-              <div className="inline-flex items-center gap-4 bg-muted/50 px-6 py-3 rounded-full">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  <span className="font-medium">
-                    {profile.tier === 'free' 
-                      ? (profile.credits >= 1 && profile.credits <= 20
-                          ? (
-                              <span className="font-bold animate-flash animate-rainbow">
-                                {profile.credits === 20 
-                                  ? 'You get 20 credits to try for FREE'
-                                  : `${profile.credits} credits remaining (20 free to start)`}
-                              </span>
-                            )
-                          : profile.credits === 0
-                            ? (
-                                <button
-                                  onClick={() => {
-                                    const premierPlan = document.getElementById('premier-plan');
-                                    if (premierPlan) {
-                                      premierPlan.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                    }
-                                  }}
-                                  className="text-primary hover:underline cursor-pointer"
-                                >
-                                  0 credits remaining - Purchase A Plan
-                                </button>
-                              )
-                            : `${profile.credits} credits remaining`)
-                      : isPremierUser
-                        ? `${profile.ai_credits} AI credits remaining`
-                        : `Unlimited filters`}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Buy Credits button for Premier users */}
-              {isPremierUser && profile.ai_credits < 10 && (
-                <Button
-                  onClick={handleBuyCredits}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Buy 50 AI Credits - $5
-                </Button>
-              )}
-              
-              {/* Change Plan button for paid users */}
-              {(profile.tier === 'weekly' || profile.tier === 'monthly' || profile.tier === 'yearly' || isPremierUser) && (
-                <Button
-                  onClick={() => {
-                    // Scroll to plans section or go to subscriptions page
-                    const plansSection = document.getElementById('subscription-plans');
-                    if (plansSection) {
-                      plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else {
-                      window.location.href = '/subscriptions';
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Change Plan
-                </Button>
-              )}
-            </div>
-          )}
+          
         </div>
 
-        {/* 24-hour notice - Only show to logged-in users */}
-        {user && profile && (
-          <div className="max-w-2xl mx-auto mb-12 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-300 text-center">
-              <strong>⏰ Important:</strong> For privacy reasons your images will be temporarily stored in the backend database for troubleshooting purposes only and will be automatically deleted after 24 hours. Please download your enhanced images within this timeframe to keep them permanently.
-            </p>
-          </div>
-        )}
-
-        {/* Form */}
-        <div className="max-w-2xl mx-auto mb-16">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form and Examples Side-by-Side, Images below Form */}
+        <div className="flex flex-col lg:flex-row gap-6 mb-16">
+          {/* Left Column: Form + Images Grid */}
+          <div className="flex-1 max-w-2xl lg:max-w-none">
+            <form onSubmit={handleSubmit} className="space-y-4 mb-6">
             {/* File Upload Area */}
             <div className="relative">
               {!previewUrl ? (
@@ -918,8 +1056,8 @@ export default function Home() {
               )}
             </div>
 
-            {/* AI Enhancement Toggle (Premier Users or Guest Users) */}
-            {selectedFile && (isPremierUser || (!user && guestImageCount < 20)) && (
+            {/* AI Enhancement Toggle (Show for all users - Premier, Guests, and Free Users) */}
+            {selectedFile && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Enhancement Type:</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -929,7 +1067,7 @@ export default function Home() {
                     onClick={() => setUseAI(false)}
                     disabled={isGenerating}
                   >
-                    Client-Side Filters (Unlimited)
+                    Client-Side Filters
                   </Button>
                   <Button
                     type="button"
@@ -938,7 +1076,7 @@ export default function Home() {
                     disabled={isGenerating}
                     className={useAI ? "bg-gradient-to-r from-purple-600 to-blue-600" : ""}
                   >
-                    {!user ? "AI Enhancement (FREE)" : "AI Enhancement (1 AI Credit)"}
+                    {!user ? "AI Enhancement" : "AI Enhancement (1 AI Credit)"}
                   </Button>
                 </div>
                 {useAI && (
@@ -979,39 +1117,21 @@ export default function Home() {
               </div>
             )}
 
-            {/* AI Button for Free Users (not guests) */}
-            {selectedFile && !isPremierUser && user && profile && profile.tier === 'free' && (
-              <div className="mb-4">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const premierPlan = document.getElementById('premier-plan');
-                    if (premierPlan) {
-                      premierPlan.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-                  disabled={isGenerating}
-                >
-                  AI Enhancement - Upgrade to Premier Plan
-                </Button>
-              </div>
-            )}
 
             {/* Filter Selection (only for non-AI enhancement) */}
             {selectedFile && !useAI && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   {!user 
-                    ? (guestImageCount >= 20 
-                        ? "You can still preview for free without the AI, sign up/sign in to explore more"
-                        : `Choose Filter Style - Create ${20 - guestImageCount} images for FREE (no sign-up required):`
+                    ? (guestImageCount >= FREE_CREDITS 
+                        ? "You can still preview for free without the AI. Sign up to get more free AI credits!"
+                        : `Choose Filter Style - Restore ${FREE_CREDITS - guestImageCount} images for FREE (no sign-up required):`
                       )
                     : (profile && profile.credits === 0
                         ? "You can still preview for free without the AI, sign up/sign in to explore more"
                         : (
                             <>
-                              Choose Filter Style (Free Preview without AI, sign in to use AI to create {profile?.credits || 20} images for{' '}
+                              Choose Filter Style (Free Preview without AI, sign in to use AI to create {profile?.credits || FREE_CREDITS} images for{' '}
                               <span className="font-bold animate-flash animate-rainbow">FREE</span>):
                             </>
                           )
@@ -1060,155 +1180,117 @@ export default function Home() {
               )}
             </Button>
             {error && (
-              <p className="text-sm text-destructive text-center">{error}</p>
+              <div className="space-y-2">
+                <p className="text-sm text-destructive text-center">{error}</p>
+                {error.includes('purchase credits') && user && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => window.location.href = '/subscriptions'}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Buy 50 Credits ($5)
+                    </Button>
+                    <Button
+                      onClick={() => handleBuyCredits('single')}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Pay $0.10 for this image
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </form>
-        </div>
 
-        {/* Images Grid */}
-        {(images.length > 0 || isGenerating) && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {isGenerating && images.length > 0 && <LoadingSkeleton />}
-            {images.map((image) => (
-              <EmojiCard
-                key={image.id}
-                id={image.id}
-                imageUrl={image.enhancedUrl}
-                originalUrl={image.originalUrl}
-                prompt={image.prompt}
-                likes={image.likes}
-                isLiked={image.isLiked}
-                onLike={handleLike}
-                createdAt={image.createdAt}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* First generation loading state */}
-        {isGenerating && images.length === 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <LoadingSkeleton />
-          </div>
-        )}
-
-        {/* Subscription Plans for Guest Users - Only show when they've used all 20 free images */}
-        {isLoaded && !user && guestImageCount >= 20 && (
-          <div className="max-w-5xl mx-auto mb-12 mt-16">
-            <h2 className="text-2xl font-bold text-center mb-6">
-              Choose Your Plan
-            </h2>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Basic Plans */}
-              <div className="border rounded-lg p-6 bg-card">
-                <div className="text-center mb-4">
-                  <h3 className="text-xl font-bold mb-2">Basic Plan</h3>
-                  <p className="text-sm text-muted-foreground">Unlimited client-side filters</p>
-                </div>
-                
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    5 filter presets
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Before/after comparison
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-green-500">✓</span>
-                    Download high-res images
-                  </li>
-                </ul>
-                
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Weekly - $2.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Monthly - $5.99
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Yearly - $14.99
-                  </Button>
-                </div>
+            {/* Images Grid - Right below the form */}
+            {(images.length > 0 || isGenerating) && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {isGenerating && images.length > 0 && <LoadingSkeleton />}
+                {images.map((image) => (
+                  <EmojiCard
+                    key={image.id}
+                    id={image.id}
+                    imageUrl={image.enhancedUrl}
+                    originalUrl={image.originalUrl}
+                    prompt={image.prompt}
+                    likes={image.likes}
+                    isLiked={image.isLiked}
+                    onLike={handleLike}
+                    createdAt={image.createdAt}
+                  />
+                ))}
               </div>
+            )}
 
-              {/* Premier Plans */}
-              <div id="premier-plan" className="border-2 border-purple-500 rounded-lg p-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 relative">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full">
-                  BEST VALUE
+            {/* First generation loading state */}
+            {isGenerating && images.length === 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <LoadingSkeleton />
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar - AI Examples Section */}
+          <div className="lg:w-80 lg:sticky lg:top-8 lg:h-fit">
+            <div className="bg-muted/50 rounded-lg p-4 border">
+              <h2 className="text-xl font-bold mb-4 text-center">
+                Use AI to restore and enhance your photos
+              </h2>
+              <div className="space-y-4">
+                {/* Original */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/original_bw.png"
+                      alt="Original"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">Original</p>
                 </div>
                 
-                <div className="text-center mb-4 mt-2">
-                  <h3 className="text-xl font-bold mb-2">Premier Plan ⭐</h3>
-                  <p className="text-sm text-muted-foreground">AI-powered enhancement + filters</p>
+                {/* GFPGAN */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/mom_bw_1-enhanced_gfpgan.png"
+                      alt="GFPGAN Enhanced"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">GFPGAN</p>
                 </div>
                 
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    <strong>100-800 AI-enhanced images/cycle</strong> <span className="text-xs text-muted-foreground">(Weekly: 100, Monthly: 200, Yearly: 800)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    GFPGAN face enhancement
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Unlimited filter enhancements
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Buy more AI credits: $5/50 images
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <span className="text-purple-500">✓</span>
-                    Priority support
-                  </li>
-                </ul>
+                {/* CodeFormer */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/mom_bw-1_codeformer.png"
+                      alt="CodeFormer Enhanced"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">CodeFormer</p>
+                </div>
                 
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Weekly - $6.99 <span className="text-xs ml-1">(100 AI credits)</span>
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Monthly - $14.99 <span className="text-xs ml-1">(200 AI credits)</span>
-                  </Button>
-                  <Button
-                    onClick={() => window.location.href = '/sign-up'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    Yearly - $79 ⭐ <span className="text-xs ml-1">(800 AI credits)</span>
-                  </Button>
+                {/* BSRGAN */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/emoji-AI---BSRGAN.png"
+                      alt="BSRGAN Enhanced"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">BSRGAN</p>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Image Cropper Modal */}
@@ -1218,6 +1300,49 @@ export default function Home() {
           onCropComplete={handleCropComplete}
           onCancel={handleCropCancel}
         />
+      )}
+
+      {/* Hidden SignUpButton for programmatic triggering */}
+      <div className="hidden">
+        <SignUpButton mode="modal">
+          <button
+            ref={signUpButtonRef}
+          />
+        </SignUpButton>
+      </div>
+
+      {/* Payment Modal - Only for authenticated users (guests must sign up first) */}
+      {showPaymentModal && user && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4">Purchase Credits</h2>
+            <p className="text-muted-foreground mb-4">
+              You've used all {FREE_CREDITS} free AI credits. Visit the subscriptions page to purchase credits.
+            </p>
+            
+            <div className="space-y-4">
+              <Button
+                onClick={() => {
+                  window.location.href = '/subscriptions';
+                }}
+                className="w-full"
+              >
+                Go to Subscriptions
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setError(null);
+                }}
+                variant="ghost"
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

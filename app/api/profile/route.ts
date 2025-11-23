@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getFreeCredits } from '@/lib/config';
 
 const supabase = supabaseAdmin();
 
@@ -39,7 +40,7 @@ export async function GET() {
         .insert({
           user_id: userId,
           tier: 'free',
-          credits: 20,
+          credits: getFreeCredits(),
         })
         .select()
         .single();

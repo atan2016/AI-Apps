@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import Image from "next/image";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -64,26 +63,56 @@ export function ImageLightbox({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
-          {/* Image */}
-          <div className="relative flex-1 flex items-center justify-center bg-black/50 rounded-lg overflow-hidden">
-            <Image
-              src={imageUrl}
-              alt={prompt}
-              fill
-              className="object-contain"
-              sizes="95vw"
-              priority
-            />
-          </div>
+          {/* Images - Side by side if originalUrl exists, single if not */}
+          {originalUrl ? (
+            <div className="relative flex-1 flex items-center justify-center gap-2 bg-black/50 rounded-lg overflow-hidden p-2">
+              {/* Original Image */}
+              <div className="relative flex-1 h-full flex flex-col items-center justify-center min-w-0">
+                <div className="relative w-full h-full flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={originalUrl}
+                    alt="Original"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <span className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-sm font-medium px-4 py-2 rounded shadow-lg">
+                  Original
+                </span>
+              </div>
+              
+              {/* Divider */}
+              <div className="w-px h-3/4 bg-white/30 self-center"></div>
+              
+              {/* Enhanced Image */}
+              <div className="relative flex-1 h-full flex flex-col items-center justify-center min-w-0">
+                <div className="relative w-full h-full flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt="Enhanced"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <span className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-sm font-medium px-4 py-2 rounded shadow-lg">
+                  Enhanced
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="relative flex-1 flex items-center justify-center bg-black/50 rounded-lg overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl}
+                alt={prompt}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          )}
 
           {/* Caption */}
           <div className="mt-4 text-center">
             <p className="text-white text-lg font-medium">{prompt}</p>
-            {originalUrl && (
-              <p className="text-white/70 text-sm mt-1">
-                Enhanced Image
-              </p>
-            )}
           </div>
         </div>
       </div>

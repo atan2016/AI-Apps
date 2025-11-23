@@ -6,6 +6,13 @@ export default function SignUpPage() {
       <SignUp 
         routing="path"
         path="/sign-up"
+        appearance={{
+          elements: {
+            headerTitle: {
+              // Custom title styling
+            },
+          },
+        }}
       />
     </div>
   );

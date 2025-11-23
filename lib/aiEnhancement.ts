@@ -21,14 +21,26 @@ export type AIModel =
  * Wait for a Replicate prediction to complete
  */
 async function waitForPrediction(predictionId: string, modelName: string): Promise<string> {
-  const maxAttempts = 60; // 60 attempts = 1 minute max
+  const maxAttempts = 90; // 90 attempts = 90 seconds max (increased from 60)
   let attempts = 0;
-  let result = await replicate.predictions.get(predictionId);
+  
+  let result;
+  try {
+    result = await replicate.predictions.get(predictionId);
+  } catch (error) {
+    console.error(`Error fetching prediction status:`, error);
+    throw new Error(`Failed to check ${modelName} prediction status. Please try again.`);
+  }
   
   while (result.status !== 'succeeded' && result.status !== 'failed' && result.status !== 'canceled' && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-    result = await replicate.predictions.get(predictionId);
-    console.log(`${modelName} prediction status:`, result.status);
+    try {
+      result = await replicate.predictions.get(predictionId);
+      console.log(`${modelName} prediction status:`, result.status, `(attempt ${attempts + 1}/${maxAttempts})`);
+    } catch (error) {
+      console.error(`Error fetching prediction status on attempt ${attempts + 1}:`, error);
+      throw new Error(`Failed to check ${modelName} prediction status. Please try again.`);
+    }
     attempts++;
   }
   
@@ -55,6 +67,16 @@ async function waitForPrediction(predictionId: string, modelName: string): Promi
       console.log(`${modelName} enhancement completed. URL:`, output[0]);
       return output[0];
     }
+  }
+  
+  // Handle timeout case
+  if (attempts >= maxAttempts && result.status !== 'succeeded' && result.status !== 'failed' && result.status !== 'canceled') {
+    throw new Error(`${modelName} prediction timed out after ${maxAttempts} seconds. Status: ${result.status}. Please try again with a smaller image or different model.`);
+  }
+  
+  // Handle failed/canceled cases
+  if (result.status === 'failed' || result.status === 'canceled') {
+    throw new Error(`${modelName} prediction ${result.status}. ${result.error || 'No output received.'}`);
   }
   
   throw new Error(`${modelName} prediction ${result.status}. ${result.error || 'No output received.'}`);

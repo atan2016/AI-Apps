@@ -24,37 +24,29 @@ export const supabaseAdmin = () => {
 // Database types
 export interface Profile {
   user_id: string;
-  tier: 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
+  tier: 'free'; // Only free tier now - pay-per-use model
   credits: number;
   ai_credits: number;
   stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
+  stripe_subscription_id: string | null; // Keep for migration period, will be cleared
+  email: string | null; // For guest users
   created_at: string;
   updated_at: string;
 }
 
-// Helper function to check if tier is premium
+// Helper function to check if tier is premium (deprecated - always returns false)
 export function isPremierTier(tier: Profile['tier']): boolean {
-  return tier.startsWith('premier_');
+  return false; // No more premier tiers
 }
 
-// Helper function to check if tier is paid (basic or premier)
+// Helper function to check if tier is paid (deprecated - always returns false)
 export function isPaidTier(tier: Profile['tier']): boolean {
-  return tier !== 'free';
+  return false; // No more paid tiers - pay-per-use model
 }
 
-// Helper function to get AI credits based on tier
+// Helper function to get AI credits based on tier (deprecated - always returns 0)
 export function getAICreditsForTier(tier: Profile['tier']): number {
-  switch (tier) {
-    case 'premier_yearly':
-      return 800;
-    case 'premier_monthly':
-      return 200;
-    case 'premier_weekly':
-      return 100;
-    default:
-      return 0;
-  }
+  return 0; // No tier-based credits - pay-per-use model
 }
 
 export interface ImageRecord {

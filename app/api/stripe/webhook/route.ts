@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, getAICreditsForTier } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -34,136 +34,125 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log('Webhook event received:', event.type);
+    
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
         const tier = session.metadata?.tier;
+        const paymentType = session.metadata?.paymentType;
+
+        console.log('Webhook received checkout.session.completed:', {
+          sessionId: session.id,
+          userId,
+          tier,
+          paymentType,
+          metadata: session.metadata,
+          paymentStatus: session.payment_status,
+          customer: session.customer,
+        });
+        
+        // Only process if payment was successful
+        if (session.payment_status !== 'paid') {
+          console.log(`Skipping webhook - payment status is ${session.payment_status}, not 'paid'`);
+          break;
+        }
 
         if (userId && tier) {
           if (tier === 'credit_pack') {
             // One-time credit purchase - add 50 AI credits
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('ai_credits')
               .eq('user_id', userId)
               .single();
 
-            if (profile) {
-              await supabase
+            if (profileError && profileError.code === 'PGRST116') {
+              // Profile doesn't exist, create it with 50 credits
+              const { getFreeCredits } = await import('@/lib/config');
+              const { data: newProfile, error: createError } = await supabase
+                .from('profiles')
+                .insert({
+                  user_id: userId,
+                  tier: 'free',
+                  credits: getFreeCredits(),
+                  ai_credits: 50,
+                  updated_at: new Date().toISOString(),
+                })
+                .select()
+                .single();
+
+              if (createError) {
+                console.error(`Error creating profile for user ${userId}:`, createError);
+              } else {
+                console.log(`Created profile and added 50 AI credits for user ${userId}`);
+              }
+            } else if (profile) {
+              const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
-                  ai_credits: profile.ai_credits + 50,
+                  ai_credits: (profile.ai_credits || 0) + 50,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('user_id', userId);
 
-              console.log(`Added 50 AI credits for user ${userId}`);
+              if (updateError) {
+                console.error(`Error updating credits for user ${userId}:`, updateError);
+              } else {
+                console.log(`Added 50 AI credits for user ${userId}. New total: ${(profile.ai_credits || 0) + 50}`);
+              }
+            } else if (profileError) {
+              console.error(`Error fetching profile for user ${userId}:`, profileError);
             }
-          } else {
-            // Subscription - update tier and credits
-            await supabase
+          } else if (tier === 'pay_per_image' || paymentType === 'single_image') {
+            // Single image payment - add 1 AI credit
+            const { data: profile, error: profileError } = await supabase
               .from('profiles')
-              .update({
-                tier: tier,
-                credits: 999999, // Unlimited for paid tiers
-                ai_credits: getAICreditsForTier(tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly'),
-                stripe_subscription_id: session.subscription as string,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('user_id', userId);
+              .select('ai_credits')
+              .eq('user_id', userId)
+              .single();
 
-            console.log(`Subscription activated for user ${userId} with tier ${tier}`);
+            if (profileError && profileError.code === 'PGRST116') {
+              // Profile doesn't exist, create it with 1 credit
+              const { getFreeCredits } = await import('@/lib/config');
+              const { data: newProfile, error: createError } = await supabase
+                .from('profiles')
+                .insert({
+                  user_id: userId,
+                  tier: 'free',
+                  credits: getFreeCredits(),
+                  ai_credits: 1,
+                  updated_at: new Date().toISOString(),
+                })
+                .select()
+                .single();
+
+              if (createError) {
+                console.error(`Error creating profile for user ${userId}:`, createError);
+              } else {
+                console.log(`Created profile and added 1 AI credit for user ${userId}`);
+              }
+            } else if (profile) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                  ai_credits: (profile.ai_credits || 0) + 1,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', userId);
+
+              if (updateError) {
+                console.error(`Error updating credits for user ${userId}:`, updateError);
+              } else {
+                console.log(`Added 1 AI credit for user ${userId} (pay-per-image). New total: ${(profile.ai_credits || 0) + 1}`);
+              }
+            } else if (profileError) {
+              console.error(`Error fetching profile for user ${userId}:`, profileError);
+            }
           }
-        }
-        break;
-      }
-
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
-        const subscriptionId = subscription.id;
-
-        // Get user from customer ID or subscription ID
-        let profile = null;
-        if (customerId) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('stripe_customer_id', customerId)
-            .single();
-          profile = data;
-        }
-        
-        // Fallback: try to find by subscription ID if customer ID lookup failed
-        if (!profile && subscriptionId) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('stripe_subscription_id', subscriptionId)
-            .single();
-          profile = data;
-        }
-
-        if (profile) {
-          // Always sync cancellation status from Stripe
-          const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
-          
-          // If subscription is active, update credits and tier info
-          if (subscription.status === 'active') {
-            const currentTier = profile.tier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly';
-            const aiCreditsForTier = getAICreditsForTier(currentTier);
-            await supabase
-              .from('profiles')
-              .update({
-                credits: 999999, // Unlimited for active subscriptions
-                ai_credits: aiCreditsForTier > 0 ? aiCreditsForTier : profile.ai_credits, // Reset to tier amount for premier on renewal
-                cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status with Stripe
-                updated_at: new Date().toISOString(),
-              })
-              .eq('user_id', profile.user_id);
-          } else {
-            // Even if subscription is not active, still sync cancellation status
-            await supabase
-              .from('profiles')
-              .update({
-                cancel_at_period_end: cancelAtPeriodEnd, // Sync cancellation status with Stripe
-                updated_at: new Date().toISOString(),
-              })
-              .eq('user_id', profile.user_id);
-          }
-          
-          console.log(`Subscription updated for user ${profile.user_id}, cancel_at_period_end: ${cancelAtPeriodEnd}, status: ${subscription.status}`);
-        }
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = subscription.customer as string;
-
-        // Get user from customer ID
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('stripe_customer_id', customerId)
-          .single();
-
-        if (profile) {
-          // Downgrade to free tier
-          await supabase
-            .from('profiles')
-            .update({
-              tier: 'free',
-              credits: 0, // No credits when subscription cancelled
-              ai_credits: 0, // Remove AI credits too
-              stripe_subscription_id: null,
-              cancel_at_period_end: false, // Clear cancellation flag since subscription has ended
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', profile.user_id);
-
-          console.log(`Subscription cancelled for user ${profile.user_id}`);
+        } else {
+          console.warn('Webhook received but missing userId or tier:', { userId, tier, metadata: session.metadata });
         }
         break;
       }

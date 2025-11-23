@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, type Profile } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getFreeCredits } from '@/lib/config';
 
 const supabase = supabaseAdmin();
@@ -10,25 +9,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-10-29.clover',
 });
 
+// Price ID for $0.10 single image payment
+// This should be created in Stripe as a one-time payment product
+const PAY_PER_IMAGE_PRICE_ID = process.env.STRIPE_PAY_PER_IMAGE_PRICE_ID || 'price_placeholder';
+
 export async function POST(request: NextRequest) {
   try {
     const SKIP_AUTH = process.env.SKIP_AUTH === 'true';
     let userId: string | null = null;
     
     if (!SKIP_AUTH) {
+      const { auth } = await import('@clerk/nextjs/server');
       const authResult = await auth();
       userId = authResult.userId;
     } else {
       userId = 'test-user-skip-auth';
-    }
-
-    const { priceId, tier } = await request.json();
-
-    if (!priceId || !tier) {
-      return NextResponse.json(
-        { error: 'Price ID and tier are required' },
-        { status: 400 }
-      );
     }
 
     // Require authentication - no guest checkout allowed
@@ -38,9 +33,6 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-
-    // All payments are one-time now (credit_pack or pay_per_image)
-    const mode = 'payment';
 
     // Get or create profile
     let { data: profile } = await supabase
@@ -85,40 +77,32 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId);
     }
 
-    // Create checkout session for one-time payment
+    // Create checkout session for $0.10 payment
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      customer: customerId,
       mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
         {
-          price: priceId,
+          price: PAY_PER_IMAGE_PRICE_ID,
           quantity: 1,
         },
       ],
-      success_url: `${request.headers.get('origin')}?success=true`,
-      cancel_url: `${request.headers.get('origin')}?canceled=true`,
+      success_url: `${request.headers.get('origin')}?payment=success&type=single_image`,
+      cancel_url: `${request.headers.get('origin')}?payment=canceled`,
       metadata: {
         userId: userId,
-        tier: tier,
+        tier: 'pay_per_image',
         isGuest: 'false',
+        paymentType: 'single_image',
       },
     };
-
-    // Set customer (all users are authenticated now)
-    if (customerId) {
-      sessionParams.customer = customerId;
-    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error) {
-    console.error('Error creating checkout session:', error);
-    // Log the full error for debugging
-    if (error instanceof Error) {
-      console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
-    }
+    console.error('Error creating pay-per-image checkout session:', error);
     return NextResponse.json(
       { 
         error: 'Failed to create checkout session',
