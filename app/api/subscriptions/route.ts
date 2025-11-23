@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, getAICreditsForTier, type Profile } from '@/lib/supabase';
+import { supabaseAdmin, type Profile } from '@/lib/supabase';
 
 const supabase = supabaseAdmin();
 
@@ -198,7 +198,8 @@ export async function GET() {
           if (needsTierUpdate && stripeTier) {
             updateData.tier = stripeTier;
             updateData.credits = 999999; // Unlimited for paid tiers
-            updateData.ai_credits = getAICreditsForTier(stripeTier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly');
+            // Note: ai_credits is now managed via pay-per-use purchases, not tiers
+            updateData.ai_credits = 0;
             console.log(`Updating tier from ${currentTier} to ${stripeTier}`);
           }
           
@@ -213,7 +214,8 @@ export async function GET() {
           if (needsTierUpdate && stripeTier) {
             profile.tier = stripeTier as Profile['tier'];
             profile.credits = 999999;
-            profile.ai_credits = getAICreditsForTier(stripeTier as 'free' | 'weekly' | 'monthly' | 'yearly' | 'premier_weekly' | 'premier_monthly' | 'premier_yearly');
+            // Note: ai_credits is now managed via pay-per-use purchases, not tiers
+            profile.ai_credits = 0;
           }
           profile.cancel_at_period_end = stripeCancelStatus;
         } catch (syncError) {
