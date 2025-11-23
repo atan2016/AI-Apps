@@ -684,7 +684,7 @@ export default function Home() {
       if (contentType.includes("application/json")) {
         try {
           data = await response.json();
-        } catch (parseError) {
+        } catch {
           // If JSON parsing fails, read as text
           try {
             const text = await response.text();
