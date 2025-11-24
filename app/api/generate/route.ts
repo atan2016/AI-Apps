@@ -8,7 +8,7 @@ import { getFreeCredits } from '@/lib/config';
 const supabase = supabaseAdmin();
 
 export const runtime = 'nodejs';
-export const maxDuration = 120; // 120 seconds timeout (2 minutes) to allow for Replicate processing
+export const maxDuration = 300; // 300 seconds timeout (5 minutes) to allow for Replicate processing which can take longer
 
 // Helper function to get client IP
 function getClientIP(request: NextRequest): string | null {

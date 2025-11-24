@@ -654,8 +654,9 @@ export default function Home() {
       };
 
       // Create AbortController for timeout
+      // Increased to 5 minutes (300 seconds) to allow for AI processing which can take longer
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout (2 minutes)
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 300 seconds timeout (5 minutes)
 
       let response;
       try {
