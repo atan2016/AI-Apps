@@ -1430,6 +1430,30 @@ export default function Home() {
                   </div>
                   <p className="text-sm font-medium">BSRGAN</p>
                 </div>
+                
+                {/* Image Denoising */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/emoji-AI---Image-Denoising.png"
+                      alt="Image Denoising Enhanced"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">Image Denoising</p>
+                </div>
+                
+                {/* Photo Restoration */}
+                <div className="text-center">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-muted mb-2">
+                    <img
+                      src="/assets/emoji-AI---Photo-Restoration.png"
+                      alt="Photo Restoration Enhanced"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="text-sm font-medium">Photo Restoration</p>
+                </div>
               </div>
             </div>
           </div>
