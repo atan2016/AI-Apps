@@ -58,7 +58,6 @@ export default function Home() {
 
   // Get free credits from configuration
   const FREE_CREDITS = getFreeCredits();
-  const MAX_GUEST_IMAGES = FREE_CREDITS;
   
   // Track free AI images used and purchased credits
   const [freeAiImagesUsed, setFreeAiImagesUsed] = useState(0);
@@ -109,8 +108,6 @@ export default function Home() {
     if (typeof window !== 'undefined' && isLoaded) {
       const urlParams = new URLSearchParams(window.location.search);
       const paymentSuccess = urlParams.get('payment') === 'success';
-      const paymentType = urlParams.get('type');
-      const credits = urlParams.get('credits');
 
       if (paymentSuccess) {
         // Clean up URL parameters
@@ -125,10 +122,8 @@ export default function Home() {
         }
 
         // Show success message
-        if (credits) {
-          setError(null);
-          // Success message will be shown via profile update
-        }
+        setError(null);
+        // Success message will be shown via profile update
 
         // Restore pending enhancement if exists
         const pendingEnhancement = sessionStorage.getItem('pendingEnhancement');
@@ -979,7 +974,7 @@ export default function Home() {
     try {
       // Store current enhancement state before redirecting to payment
       // First check if there's already a pending enhancement (from handleSubmit)
-      let pendingEnhancement = sessionStorage.getItem('pendingEnhancement');
+      const pendingEnhancement = sessionStorage.getItem('pendingEnhancement');
       if (!pendingEnhancement && selectedFile && previewUrl) {
         // Convert file to data URL for storage (synchronously using previewUrl if available)
         const dataUrl = previewUrl;

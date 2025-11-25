@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
       userId = 'test-user-skip-auth';
     }
 
-    // Get client IP for abuse prevention
-    const clientIP = getClientIP(request);
+    // Get client IP for abuse prevention (currently not used but kept for future abuse prevention)
+    // const clientIP = getClientIP(request);
 
     // Read and parse request body once
     let body;

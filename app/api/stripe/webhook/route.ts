@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
             if (profileError && profileError.code === 'PGRST116') {
               // Profile doesn't exist, create it with 50 credits
               const { getFreeCredits } = await import('@/lib/config');
-              const { data: newProfile, error: createError } = await supabase
+              const { error: createError } = await supabase
                 .from('profiles')
                 .insert({
                   user_id: userId,
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
             if (profileError && profileError.code === 'PGRST116') {
               // Profile doesn't exist, create it with 5 credits
               const { getFreeCredits } = await import('@/lib/config');
-              const { data: newProfile, error: createError } = await supabase
+              const { error: createError } = await supabase
                 .from('profiles')
                 .insert({
                   user_id: userId,

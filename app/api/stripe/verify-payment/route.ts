@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
 
     // Process the payment based on tier
     const tier = session.metadata?.tier;
-    const paymentType = session.metadata?.paymentType;
     const creditsToAdd = tier === 'credit_pack' ? 50 : 5; // 50 for large pack, 5 for small pack
 
     const { data: profile, error: profileError } = await supabase

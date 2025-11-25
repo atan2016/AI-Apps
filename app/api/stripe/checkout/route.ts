@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { supabaseAdmin, type Profile } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getFreeCredits } from '@/lib/config';
 
 const supabase = supabaseAdmin();
@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     }
 
     // All payments are one-time now (credit_pack or pay_per_image)
-    const mode = 'payment';
 
     // Get or create profile
     let { data: profile } = await supabase

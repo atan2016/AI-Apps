@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Loader2, CreditCard } from "lucide-react";
 import { getApiPath } from "@/lib/api-utils";
 import { getFreeCredits } from "@/lib/config";
@@ -62,8 +62,6 @@ export default function SubscriptionsPage() {
       // Check if user just returned from successful payment
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('success') === 'true' || urlParams.get('payment') === 'success') {
-        const paymentType = urlParams.get('type');
-        const credits = urlParams.get('credits');
         
         setPaymentSuccess(true);
         
@@ -113,6 +111,7 @@ export default function SubscriptionsPage() {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, user, router]);
 
   const fetchProfile = async (checkForPayments = false) => {
