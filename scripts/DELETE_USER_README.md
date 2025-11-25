@@ -95,3 +95,5 @@ The Node.js script handles everything automatically:
 - Check the user_id is correct
 - Verify in Supabase Dashboard
 
+
+

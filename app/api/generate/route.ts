@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         if (isGuest) {
           return NextResponse.json(
             { 
-              error: "You've used all free AI credits. Please provide your email and pay $0.10 for this image, or purchase 50 credits for $5.",
+              error: "You've used all free AI credits. Please purchase 5 credits for $1, or 50 credits for $5.",
               requiresPayment: true,
               isGuest: true
             },

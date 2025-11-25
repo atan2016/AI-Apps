@@ -104,6 +104,92 @@ export default function Home() {
     }
   }, [isLoaded, user, router]);
 
+  // Handle payment success redirect
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isLoaded) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paymentSuccess = urlParams.get('payment') === 'success';
+      const paymentType = urlParams.get('type');
+      const credits = urlParams.get('credits');
+
+      if (paymentSuccess) {
+        // Clean up URL parameters
+        window.history.replaceState({}, '', window.location.pathname);
+
+        // Refresh profile to get updated credits
+        if (user) {
+          // Use setTimeout to avoid dependency issues
+          setTimeout(() => {
+            fetchProfile();
+          }, 100);
+        }
+
+        // Show success message
+        if (credits) {
+          setError(null);
+          // Success message will be shown via profile update
+        }
+
+        // Restore pending enhancement if exists
+        const pendingEnhancement = sessionStorage.getItem('pendingEnhancement');
+        if (pendingEnhancement) {
+          try {
+            const enhancementData = JSON.parse(pendingEnhancement);
+            // Check if it's recent (within last 10 minutes)
+            if (Date.now() - enhancementData.timestamp < 10 * 60 * 1000) {
+              // Restore the image
+              const img = new Image();
+              img.onload = () => {
+                // Convert data URL back to file
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0);
+                  canvas.toBlob((blob) => {
+                    if (blob) {
+                      const file = new File([blob], 'restored-image.png', { type: 'image/png' });
+                      setSelectedFile(file);
+                      setPreviewUrl(enhancementData.imageDataUrl);
+                      setUseAI(enhancementData.useAI);
+                      setSelectedAIModel(enhancementData.aiModel);
+                      setSelectedFilter(enhancementData.selectedFilter);
+                      
+                      // Clear the stored enhancement
+                      sessionStorage.removeItem('pendingEnhancement');
+                      
+                      // Wait for profile to update, then automatically trigger enhancement
+                      setTimeout(() => {
+                        // Create a synthetic form event to trigger handleSubmit
+                        const form = document.querySelector('form');
+                        if (form) {
+                          const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true });
+                          Object.defineProperty(syntheticEvent, 'preventDefault', {
+                            value: () => {},
+                            writable: false
+                          });
+                          handleSubmit(syntheticEvent as unknown as FormEvent);
+                        }
+                      }, 1500); // Wait 1.5 seconds for profile to update
+                    }
+                  });
+                }
+              };
+              img.src = enhancementData.imageDataUrl;
+            } else {
+              // Too old, remove it
+              sessionStorage.removeItem('pendingEnhancement');
+            }
+          } catch (err) {
+            console.error('Error restoring pending enhancement:', err);
+            sessionStorage.removeItem('pendingEnhancement');
+          }
+        }
+      }
+    }
+  }, [isLoaded, user]);
+
   // Count free AI images used
   useEffect(() => {
     if (images.length > 0) {
@@ -557,6 +643,18 @@ export default function Home() {
       const hasPurchasedCredits = profile && (profile.ai_credits || 0) > 0;
       
       if (!hasFreeCreditsLeft && !hasPurchasedCredits) {
+        // Store enhancement state before showing payment options
+        if (selectedFile && previewUrl) {
+          const dataUrl = previewUrl;
+          sessionStorage.setItem('pendingEnhancement', JSON.stringify({
+            imageDataUrl: dataUrl,
+            useAI: useAI,
+            aiModel: selectedAIModel,
+            selectedFilter: selectedFilter,
+            timestamp: Date.now()
+          }));
+        }
+        
         // No free credits left and no purchased credits - prompt to sign up or purchase
         if (!user) {
           // Guest user - require sign-up before payment
@@ -712,6 +810,18 @@ export default function Home() {
         if (response.status === 402 && data && typeof data === 'object' && data !== null) {
           const errorData = data as { requiresPayment?: boolean; isGuest?: boolean; error?: string };
           if (errorData.requiresPayment) {
+            // Store enhancement state before showing payment options
+            if (selectedFile && previewUrl) {
+              const dataUrl = previewUrl;
+              sessionStorage.setItem('pendingEnhancement', JSON.stringify({
+                imageDataUrl: dataUrl,
+                useAI: useAI,
+                aiModel: selectedAIModel,
+                selectedFilter: selectedFilter,
+                timestamp: Date.now()
+              }));
+            }
+            
             if (errorData.isGuest) {
               // Guest user needs to sign up before payment
               setShowSignUpModal(true);
@@ -822,7 +932,8 @@ export default function Home() {
         setFreeAiImagesUsed(used);
       }
       
-      clearSelection();
+      // Don't clear selection - keep the image so user can enhance again
+      // clearSelection();
       setIsGenerating(false);
     } catch (err) {
       console.error('Error in handleSubmit:', err);
@@ -856,7 +967,7 @@ export default function Home() {
   };
 
 
-  const handleBuyCredits = async (type: 'single' | 'pack') => {
+  const handleBuyCredits = async (type: 'small' | 'pack') => {
     // This function is only for authenticated users now
     // Guest users must sign up first
     if (!user) {
@@ -866,8 +977,23 @@ export default function Home() {
     }
 
     try {
-      if (type === 'single') {
-        // Pay $0.10 for single image
+      // Store current enhancement state before redirecting to payment
+      // First check if there's already a pending enhancement (from handleSubmit)
+      let pendingEnhancement = sessionStorage.getItem('pendingEnhancement');
+      if (!pendingEnhancement && selectedFile && previewUrl) {
+        // Convert file to data URL for storage (synchronously using previewUrl if available)
+        const dataUrl = previewUrl;
+        sessionStorage.setItem('pendingEnhancement', JSON.stringify({
+          imageDataUrl: dataUrl,
+          useAI: useAI,
+          aiModel: selectedAIModel,
+          selectedFilter: selectedFilter,
+          timestamp: Date.now()
+        }));
+      }
+
+      if (type === 'small') {
+        // Buy 5 credits for $1 (minimum purchase)
         const response = await fetch(getApiPath('/api/stripe/pay-per-image'), {
           method: 'POST',
           headers: {
@@ -878,7 +1004,9 @@ export default function Home() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create checkout session');
+          const errorMessage = errorData.error || 'Failed to create checkout session';
+          const errorDetails = errorData.details ? ` (${errorData.details})` : '';
+          throw new Error(`${errorMessage}${errorDetails}`);
         }
 
         const data = await response.json();
@@ -905,7 +1033,9 @@ export default function Home() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create checkout session');
+          const errorMessage = errorData.error || 'Failed to create checkout session';
+          const errorDetails = errorData.details ? ` (${errorData.details})` : '';
+          throw new Error(`${errorMessage}${errorDetails}`);
         }
 
         const data = await response.json();
@@ -1211,11 +1341,11 @@ export default function Home() {
                       Buy 50 Credits ($5)
                     </Button>
                     <Button
-                      onClick={() => handleBuyCredits('single')}
+                      onClick={() => handleBuyCredits('small')}
                       size="sm"
                       className="flex-1"
                     >
-                      Pay $0.10 for this image
+                      Buy 5 Credits ($1)
                     </Button>
                   </div>
                 )}

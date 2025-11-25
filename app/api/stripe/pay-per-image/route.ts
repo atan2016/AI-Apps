@@ -9,9 +9,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-10-29.clover',
 });
 
-// Price ID for $0.10 single image payment
-// This should be created in Stripe as a one-time payment product
-const PAY_PER_IMAGE_PRICE_ID = process.env.STRIPE_PAY_PER_IMAGE_PRICE_ID || 'price_placeholder';
+// Price ID for $1 payment (5 credits minimum purchase)
+// Note: Stripe requires minimum $0.50 for checkout sessions
+// This should be created in Stripe as a one-time payment product for $1.00
+const PAY_PER_IMAGE_PRICE_ID = process.env.STRIPE_PAY_PER_IMAGE_PRICE_ID || 'price_1SXDcYJtYXMzJCdNsi2jGDni';
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         .eq('user_id', userId);
     }
 
-    // Create checkout session for $0.10 payment
+    // Create checkout session for $1 payment (5 credits minimum purchase)
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       mode: 'payment',
@@ -88,25 +89,46 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${request.headers.get('origin')}?payment=success&type=single_image`,
-      cancel_url: `${request.headers.get('origin')}?payment=canceled`,
+      success_url: `${request.headers.get('origin')}/subscriptions?success=true&type=small_credit_pack&credits=5`,
+      cancel_url: `${request.headers.get('origin')}/subscriptions?payment=canceled`,
       metadata: {
         userId: userId,
-        tier: 'pay_per_image',
+        tier: 'small_credit_pack',
         isGuest: 'false',
-        paymentType: 'single_image',
+        paymentType: 'small_credit_pack',
+        credits: '5',
       },
     };
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 
-    return NextResponse.json({ sessionId: session.id, url: session.url });
-  } catch (error) {
-    console.error('Error creating pay-per-image checkout session:', error);
+    return NextResponse.json({ 
+      sessionId: session.id, 
+      url: session.url 
+    });
+  } catch (err) {
+    console.error('Error creating pay-per-image checkout session:', err);
+    // Log full error details for debugging
+    if (err instanceof Error) {
+      console.error('Error details:', err.message);
+      console.error('Error stack:', err.stack);
+    }
+    // Check if it's a Stripe error
+    if (err && typeof err === 'object' && 'type' in err) {
+      const stripeError = err as { type?: string; message?: string; code?: string };
+      return NextResponse.json(
+        { 
+          error: 'Failed to create checkout session',
+          details: stripeError.message || 'Stripe API error',
+          code: stripeError.code || stripeError.type
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { 
         error: 'Failed to create checkout session',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: err instanceof Error ? err.message : 'Unknown error'
       },
       { status: 500 }
     );

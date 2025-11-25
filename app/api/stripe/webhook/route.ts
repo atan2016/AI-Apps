@@ -105,8 +105,10 @@ export async function POST(request: NextRequest) {
             } else if (profileError) {
               console.error(`Error fetching profile for user ${userId}:`, profileError);
             }
-          } else if (tier === 'pay_per_image' || paymentType === 'single_image') {
-            // Single image payment - add 1 AI credit
+          } else if (tier === 'pay_per_image' || tier === 'small_credit_pack' || paymentType === 'single_image' || paymentType === 'small_credit_pack') {
+            // Pay-per-image payment or small credit pack - add 5 AI credits (minimum purchase)
+            console.log(`Processing ${tier || paymentType} payment for user ${userId} - adding 5 credits`);
+            
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('ai_credits')
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest) {
               .single();
 
             if (profileError && profileError.code === 'PGRST116') {
-              // Profile doesn't exist, create it with 1 credit
+              // Profile doesn't exist, create it with 5 credits
               const { getFreeCredits } = await import('@/lib/config');
               const { data: newProfile, error: createError } = await supabase
                 .from('profiles')
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
                   user_id: userId,
                   tier: 'free',
                   credits: getFreeCredits(),
-                  ai_credits: 1,
+                  ai_credits: 5,
                   updated_at: new Date().toISOString(),
                 })
                 .select()
@@ -131,13 +133,16 @@ export async function POST(request: NextRequest) {
               if (createError) {
                 console.error(`Error creating profile for user ${userId}:`, createError);
               } else {
-                console.log(`Created profile and added 1 AI credit for user ${userId}`);
+                console.log(`Created profile and added 5 AI credits for user ${userId}`);
               }
             } else if (profile) {
+              const currentCredits = profile.ai_credits || 0;
+              const newCredits = currentCredits + 5;
+              
               const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
-                  ai_credits: (profile.ai_credits || 0) + 1,
+                  ai_credits: newCredits,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('user_id', userId);
@@ -145,7 +150,7 @@ export async function POST(request: NextRequest) {
               if (updateError) {
                 console.error(`Error updating credits for user ${userId}:`, updateError);
               } else {
-                console.log(`Added 1 AI credit for user ${userId} (pay-per-image). New total: ${(profile.ai_credits || 0) + 1}`);
+                console.log(`Added 5 AI credits for user ${userId} (${tier || paymentType}). Previous: ${currentCredits}, New total: ${newCredits}`);
               }
             } else if (profileError) {
               console.error(`Error fetching profile for user ${userId}:`, profileError);

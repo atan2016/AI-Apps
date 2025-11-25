@@ -203,3 +203,5 @@ If you encounter issues:
 3. Check Supabase and Stripe dashboards for remaining data
 4. Review the script output for detailed error messages
 
+
+

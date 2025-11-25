@@ -241,3 +241,5 @@ sequenceDiagram
 - **Environment Variables:** Configured in Vercel dashboard
 - **Cron Jobs:** Daily cleanup at 2 AM (Vercel Hobby plan limit)
 
+
+
